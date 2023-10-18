@@ -264,7 +264,6 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   HavingStmt *having_stmt = nullptr;
   SelectStmt *select_stmt = nullptr;
 
-  // 构造inner_join_filter_stmt
 
   // create filter statement in `where` statement
   RC rc = FilterStmt::create(db,
@@ -276,6 +275,17 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
   if (rc != RC::SUCCESS) {
     LOG_WARN("cannot construct filter stmt");
     goto err_handler;
+  }
+  // 构造inner_join_filter_stmt
+   rc = FilterStmt::create(db,
+                              default_table,
+                              &table_map,
+                              select_sql.join_conditions.data(),
+                              static_cast<int>(select_sql.join_conditions.size()),
+                              inner_join_filter_stmt); 
+  if (rc != RC::SUCCESS) {
+      LOG_WARN("cannot construct inner join filter stmt");
+      goto err_handler;
   }
   // 构造OrderStmt
   rc = OrderByStmt::create(db, 
