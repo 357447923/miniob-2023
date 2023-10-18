@@ -653,7 +653,6 @@ expression:
       free($1);
     }
     | agg_func LBRACE ID RBRACE {
-      std::cout << "enter into agg_fun (ID)" << std::endl;
       FieldExpr *field_expr = new FieldExpr;
       field_expr->set_name(std::string($3));
       $$ = new AggrFuncExpr($1, field_expr);
@@ -687,7 +686,6 @@ select_attr:
       $$->emplace_back(attr);
     }
     | rel_attr attr_list {
-      std::cout << "rel_attr attr_list" << std::endl;
       if ($2 != nullptr) {
         $$ = $2;
       } else {

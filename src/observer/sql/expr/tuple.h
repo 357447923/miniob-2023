@@ -204,7 +204,7 @@ public:
   {
     const char *table_name = spec.table_name();
     const char *field_name = spec.field_name();
-    if (0 != strcmp(table_name, table_->name())) {
+    if (!common::is_blank(table_name) && 0 != strcmp(table_name, table_->name())) {
       return RC::NOTFOUND;
     }
 
@@ -311,7 +311,9 @@ RC cell_at(int index, Value &cell) const override
     }
     LOG_ERROR("Only handle AritheticExpr in current");
   }
-  return tuple_->cell_at(index, cell);
+  // 解决project的查询的schema与其他算子schema不同的情况, 实现较为丑陋(对性能不友好)
+  return tuple_->find_cell(*speces_[index], cell);
+  // return tuple_->cell_at(index, cell);
 }
 RC find_cell(const TupleCellSpec &spec, Value &cell) const override
 {
