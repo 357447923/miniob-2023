@@ -127,7 +127,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
         field_name = relation_attr.attribute_name.c_str();
       }else {
         // 这里仅需考虑算数表达式(目前还没有除了表达式和字段之外的语法)
-        ArithmeticExpr::find_field_need(table_map, (ArithmeticExpr *)relation_attr.expression);
+        ArithmeticExpr *arithmetic_expr = (ArithmeticExpr *)relation_attr.expression;
+        ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
+        if (arithmetic_expr->contains_aggr()) {
+          contains_aggr_func = true;
+        }
         query_expressions.emplace_back(relation_attr.expression);
         continue;
       }
@@ -176,7 +180,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
           return RC::SCHEMA_FIELD_MISSING;
         }
         // 没写表名的时候也可能是select 1+1 这种情况
-        ArithmeticExpr::find_field_need(table_map, (ArithmeticExpr *)(relation_attr.expression));
+        ArithmeticExpr *arithmetic_expr = (ArithmeticExpr *)(relation_attr.expression);
+        ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
+        if (arithmetic_expr->contains_aggr()) {
+          contains_aggr_func = true;
+        }
         query_expressions.emplace_back(relation_attr.expression);
         continue;
       }
@@ -187,7 +195,11 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
       if (relation_attr.expression != nullptr) {
         if (relation_attr.expression->type() == ExprType::ARITHMETIC) {
           // 填充算术表达式中的字段
-          ArithmeticExpr::find_field_need(table, (ArithmeticExpr *)relation_attr.expression);
+          ArithmeticExpr *arithmetic_expr = (ArithmeticExpr *)relation_attr.expression;
+          ArithmeticExpr::find_field_need(table, arithmetic_expr);
+          if (arithmetic_expr->contains_aggr()) {
+            contains_aggr_func = true;
+          }
           query_expressions.emplace_back(relation_attr.expression);
         }
         // 其他的类型暂时不处理，因为目前relation_attr的expression属性有值的情况有且仅有其为算数表达式

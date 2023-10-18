@@ -544,18 +544,18 @@ public:
           cell = aggr_results_[i];
           return RC::SUCCESS;
         }
-        if (common::is_blank(spec.table_name())) {
+        // if (common::is_blank(spec.table_name())) {
           if ((expr->field() != nullptr && strcmp(expr->field()->field_name(), spec.field_name()) == 0) || 
               (expr->value() != nullptr && strcmp(expr->value()->get_value().get_string().c_str(), spec.field_name()) == 0)) {
                 cell = aggr_results_[i];
                 return RC::SUCCESS;
           }
-        }
-        if (strcmp(expr->field()->table_name(), spec.table_name()) == 0 
+        // }
+        /*if (strcmp(expr->field()->table_name(), spec.table_name()) == 0 
           && strcmp(expr->field()->field_name(), spec.field_name()) == 0) {
           cell = field_results_[i];
           return RC::SUCCESS;
-        }
+        }*/
       }
       LOG_WARN("Couldn't find %s", spec.to_string());
       return RC::NOTFOUND;
