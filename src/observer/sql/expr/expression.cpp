@@ -367,6 +367,16 @@ void ArithmeticExpr::find_field_need(const Table *table, ArithmeticExpr *express
     Field &field = field_expr->field();
     field.set_field(field_meta);
     field.set_table(table);
+  }else if (type == ExprType::AGGRFUNCTION) {
+    expression->contains_aggr_ = true;
+    FieldExpr *field_expr = ((AggrFuncExpr *)left.get())->field();
+    if (!field_expr) {
+      return;
+    }
+    const FieldMeta *field_meta = table->table_meta().field(field_expr->name().c_str());
+    Field &field = field_expr->field();
+    field.set_field(field_meta);
+    field.set_table(table);
   }
   if (expression->arithmetic_type_ == Type::NEGATIVE) {
     // 负值表达式是单目的运算
@@ -383,7 +393,39 @@ void ArithmeticExpr::find_field_need(const Table *table, ArithmeticExpr *express
     Field &field = field_expr->field();
     field.set_field(field_meta);
     field.set_table(table);
+  }else if (type == ExprType::AGGRFUNCTION) {
+    FieldExpr *field_expr = ((AggrFuncExpr *)right.get())->field();
+    expression->contains_aggr_ = true;
+    if (!field_expr) {
+      return;
+    }
+    const FieldMeta *field_meta = table->table_meta().field(field_expr->name().c_str());
+    Field &field = field_expr->field();
+    field.set_field(field_meta);
+    field.set_table(table);
   }
+  return;
+}
+
+static bool create_field_by_expr(FieldExpr *field_expr, const std::unordered_map<std::string, Table *> &table_map) {
+  std::string field_name = field_expr->name();
+  int idx = field_name.find_first_of(".");
+  if (std::string::npos == idx) {
+    LOG_ERROR("ERROR: idx=npos");
+  }
+  std::string table_name = field_name.substr(0, idx);
+  auto iter = table_map.find(table_name);
+  if (iter == table_map.end()) {
+    LOG_WARN("no such table in from list: %s", table_name);
+    return false;
+  }
+  Table *table = iter->second;
+  field_name = field_name.substr(idx + 1, field_name.size() - idx - 1);
+  const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
+  Field &field = field_expr->field();
+  field.set_field(field_meta);
+  field.set_table(table);
+  return true;
 }
 
 void ArithmeticExpr::find_field_need(const std::unordered_map<std::string, Table *> &table_map, ArithmeticExpr *expression) {
@@ -395,24 +437,17 @@ void ArithmeticExpr::find_field_need(const std::unordered_map<std::string, Table
     find_field_need(table_map, (ArithmeticExpr *)left.get());
   } else if (type == ExprType::FIELD) {
     // 当前仅有类型为Field的expression需要填充
-    FieldExpr *field_expr = (FieldExpr *)(left.get());
-    std::string field_name = field_expr->name();
-    int idx = field_name.find_first_of(".");
-    if (std::string::npos == idx) {
-      LOG_ERROR("ERROR: idx=npos");
-    }
-    std::string table_name = field_name.substr(0, idx);
-    auto iter = table_map.find(table_name);
-    if (iter == table_map.end()) {
-      LOG_WARN("no such table in from list: %s", table_name);
+    if (!create_field_by_expr((FieldExpr *)(left.get()), table_map)) {
       return;
     }
-    Table *table = iter->second;
-    field_name = field_name.substr(idx + 1, field_name.size() - idx - 1);
-    const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
-    Field &field = field_expr->field();
-    field.set_field(field_meta);
-    field.set_table(table);
+  } else if (type == ExprType::AGGRFUNCTION) {
+    AggrFuncExpr *aggr_func_expr = (AggrFuncExpr*)(left.get());
+    expression->contains_aggr_ = true;
+    FieldExpr *field_expr = aggr_func_expr->field();
+    // 补充算数表达式中的聚合函数表达式的field
+    if (!field_expr || !create_field_by_expr(field_expr, table_map)) {
+      return;
+    }
   }
   if (expression->arithmetic_type_ == Type::NEGATIVE) {
     // 负值表达式是单目的运算
@@ -425,21 +460,40 @@ void ArithmeticExpr::find_field_need(const std::unordered_map<std::string, Table
     find_field_need(table_map, (ArithmeticExpr *)right.get());
   }else if(type == ExprType::FIELD) {
      // 当前仅有类型为Field的expression需要填充
-    FieldExpr *field_expr = (FieldExpr *)(right.get());
-    std::string field_name = field_expr->name();
-    int idx = field_name.find_first_of(".");
-    std::string table_name = field_name.substr(0, idx);
-    auto iter = table_map.find(table_name);
-    if (iter == table_map.end()) {
-      LOG_WARN("no such table in from list: %s", table_name);
+    if (!create_field_by_expr((FieldExpr *)(right.get()), table_map)) {
       return;
     }
-    Table *table = iter->second;
-    field_name = field_name.substr(idx + 1, field_name.size() - idx - 1);
-    const FieldMeta *field_meta = table->table_meta().field(field_name.c_str());
-    Field &field = field_expr->field();
-    field.set_field(field_meta);
-    field.set_table(table);
+  }else if(type == ExprType::AGGRFUNCTION) {
+    FieldExpr *field_expr = ((AggrFuncExpr*)(right.get()))->field();
+    expression->contains_aggr_ = true;
+    if (!field_expr || !create_field_by_expr(field_expr, table_map)) {
+      return;
+    }
+  }
+  return;
+}
+
+void ArithmeticExpr::find_aggr_func(ArithmeticExpr *expression, std::vector<AggrFuncExpr *> &exprs) {
+  Expression *left = expression->left_.get();
+  switch (left->type()) {
+    case ExprType::ARITHMETIC: {
+      find_aggr_func((ArithmeticExpr *)left, exprs);
+    }break;
+    case ExprType::AGGRFUNCTION: {
+      exprs.push_back((AggrFuncExpr *)left);
+    }break;
+  }
+  if (expression->arithmetic_type_ == Type::NEGATIVE) {
+    return;
+  }
+  Expression *right = expression->right_.get();
+  switch (right->type()) {
+    case ExprType::ARITHMETIC: {
+      find_aggr_func((ArithmeticExpr *)right, exprs);
+    }break;
+    case ExprType::AGGRFUNCTION: {
+      exprs.push_back((AggrFuncExpr *)right);
+    }break;
   }
 }
 
@@ -447,12 +501,22 @@ void ArithmeticExpr::find_field_need(const std::unordered_map<std::string, Table
 //////////////////////////////////////////////////////////
 
 // AggrFuncExpr start...
-AggrFuncExpr::AggrFuncExpr(AggFuncType type, FieldExpr *&&field) : type_(type), field_(field) {}
+AggrFuncExpr::AggrFuncExpr(AggFuncType type, FieldExpr *field) : type_(type), field_(field) {}
 
-AggrFuncExpr::AggrFuncExpr(AggFuncType type, ValueExpr *&&value) : type_(type),value_(value) {}
+AggrFuncExpr::AggrFuncExpr(AggFuncType type, ValueExpr *value) : type_(type),value_(value) {}
 
 AttrType AggrFuncExpr::value_type() const {
-  LOG_ERROR("AggFuncExpr's value_type func waitting for implenment");
+  switch(type_) {
+    case FUNC_AVG: return AttrType::FLOATS;
+    case FUNC_COUNT: return AttrType::INTS;
+    case FUNC_MAX: case FUNC_MIN: case FUNC_SUM: {
+      if (field_) {
+        return field_->field().attr_type();
+      }
+      return value_->value_type();
+    }
+  }
+  LOG_ERROR("AggFuncExpr's value_type is UNDEFINED, please check expr");
   return AttrType::UNDEFINED;
 }
 

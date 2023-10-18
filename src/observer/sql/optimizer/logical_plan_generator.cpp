@@ -155,6 +155,10 @@ RC LogicalPlanGenerator::create_plan(
       field_exprs.emplace_back((FieldExpr *)expr);
       break;
     }
+    case ExprType::ARITHMETIC: {
+      ArithmeticExpr::find_aggr_func((ArithmeticExpr *)expr, aggr_exprs);
+      break;
+    }
     }
   }
 

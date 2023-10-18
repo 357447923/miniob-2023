@@ -169,7 +169,7 @@ static inline void modify_2_negative(Value *value) {
 %type <rel_attr_list>       group_list
 %type <rel_attr>            group_item
 %type <rel_attr_list>       select_attr
-%type <rel_attr>            func_select_attr
+
 %type <relation_list>       rel_list
 
 %type <rel_attr_list>       attr_list
@@ -644,13 +644,37 @@ expression:
     | ID {
       $$ = new FieldExpr;
       $$->set_name(std::string($1));
-      delete $1;
+      free($1);
     }
     | ID DOT ID {
       $$ = new FieldExpr;
       $$->set_name(std::string($1).append(".").append(std::string($3)));
-      delete $3;
-      delete $1;
+      free($3);
+      free($1);
+    }
+    | agg_func LBRACE ID RBRACE {
+      std::cout << "enter into agg_fun (ID)" << std::endl;
+      FieldExpr *field_expr = new FieldExpr;
+      field_expr->set_name(std::string($3));
+      $$ = new AggrFuncExpr($1, field_expr);
+      free($3);
+    }
+    | agg_func LBRACE ID DOT ID RBRACE {
+      FieldExpr *field_expr = new FieldExpr;
+      field_expr->set_name(std::string($3).append(".").append(std::string($5)));
+      $$ = new AggrFuncExpr($1, field_expr);
+      free($3);
+      free($5);
+    }
+    | agg_func LBRACE '*' RBRACE {
+      ValueExpr *expr = new ValueExpr(Value("*", 2));
+      expr->set_name("*");
+      $$ = new AggrFuncExpr($1, expr);
+    }
+    | agg_func LBRACE number RBRACE {
+      ValueExpr *expr = new ValueExpr(Value($3));
+      expr->set_name(std::to_string($3));
+      $$ = new AggrFuncExpr($1, expr);
     }
     ;
 
@@ -663,6 +687,7 @@ select_attr:
       $$->emplace_back(attr);
     }
     | rel_attr attr_list {
+      std::cout << "rel_attr attr_list" << std::endl;
       if ($2 != nullptr) {
         $$ = $2;
       } else {
@@ -670,33 +695,6 @@ select_attr:
       }
       $$->emplace_back(*$1);
       delete $1;
-    }
-    ;
-
-func_select_attr:
-    agg_func LBRACE ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = $3;
-      $$->type = $1;
-      free($3);
-    }
-    | agg_func LBRACE ID DOT ID RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->relation_name = $3;
-      $$->attribute_name = $5;
-      $$->type = $1;
-      free($3);
-      free($5);
-    }
-    | agg_func LBRACE '*' RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = '*';
-      $$->type = $1;
-    }
-    | agg_func LBRACE number RBRACE {
-      $$ = new RelAttrSqlNode;
-      $$->attribute_name = std::to_string($3);
-      $$->type = $1;
     }
     ;
 
@@ -714,12 +712,26 @@ rel_attr:
           $$->attribute_name = $1->name();
         }
         delete $1;
+      }else if($1->type() == ExprType::AGGRFUNCTION){
+        // TODO 降低冗余
+        FieldExpr *expr = ((AggrFuncExpr *)$1)->field();
+        if (expr) {
+          std::string field_name = expr->name();
+          std::string table_name;
+          int idx = field_name.find_first_of(".");
+          if (std::string::npos != idx) {
+            $$->relation_name = field_name.substr(0, idx);
+            $$->attribute_name = field_name.substr(idx + 1, field_name.size() - idx - 1);
+          }else {
+            $$->attribute_name = std::move(field_name);
+          }
+        }else {
+          $$->attribute_name = ((AggrFuncExpr *)$1)->value()->name();
+        }
+        $$->type = ((AggrFuncExpr *)$1)->aggr_type();
       }else {
         $$->expression = $1;
       }
-    }
-    | func_select_attr {
-      $$ = $1;
     }
     ;
 

@@ -272,6 +272,7 @@ private:
   std::vector<std::unique_ptr<Expression>> children_;
 };
 
+class AggrFuncExpr;
 /**
  * @brief 算术表达式
  * @ingroup Expression
@@ -299,24 +300,31 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
+  bool contains_aggr() const { return contains_aggr_; }
+
   Type arithmetic_type() const { return arithmetic_type_; }
 
   std::unique_ptr<Expression> &left() { return left_; }
   std::unique_ptr<Expression> &right() { return right_; }
   /**
    * 单表查询时的字段表达式填充
+   * @return 返回值表示在式子中是否存在聚合函数
    */
   static void find_field_need(const Table *table, ArithmeticExpr *expression);
   /**
    * 多表查询时的字段表达式填充
    * 仅仅支持t.xxx这种, 不能做到识别出字段属于哪个表(对于miniob来说足矣)
+   * @return 返回值表示在式子中是否存在聚合函数
    */
   static void find_field_need(const std::unordered_map<std::string, Table *> &table_map, ArithmeticExpr *expression);
+
+  static void find_aggr_func(ArithmeticExpr *expression, std::vector<AggrFuncExpr *> &exprs);
 
 private:
   RC calc_value(const Value &left_value, const Value &right_value, Value &value) const;
   
 private:
+  bool contains_aggr_ = false;
   Type arithmetic_type_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
@@ -325,10 +333,11 @@ private:
 class AggrFuncExpr : public Expression {
 public:
   AggrFuncExpr() = default;
+  // 通过这个传入的value, 必须由AggrfuncExpr对象管理
+  AggrFuncExpr(AggFuncType type, ValueExpr *value);
 
-  AggrFuncExpr(AggFuncType type, FieldExpr *&&field);
-  
-  AggrFuncExpr(AggFuncType type, ValueExpr *&&value);
+  // 通过这个传入的field, 必须由AggrfuncExpr对象管理
+  AggrFuncExpr(AggFuncType type, FieldExpr *field);
 
   ~AggrFuncExpr() {
     if (value_ != nullptr) {

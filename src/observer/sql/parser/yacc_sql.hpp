@@ -35,8 +35,8 @@
    especially those whose name start with YY_ or yy_.  They are
    private implementation details that can be changed or removed.  */
 
-#ifndef YY_YY_HOME_XIAOMING_MINIOB_SRC_OBSERVER_SQL_PARSER_YACC_SQL_HPP_INCLUDED
-# define YY_YY_HOME_XIAOMING_MINIOB_SRC_OBSERVER_SQL_PARSER_YACC_SQL_HPP_INCLUDED
+#ifndef YY_YY_HOME_XIAOMING_MINIOB_COMPETITION_SRC_OBSERVER_SQL_PARSER_YACC_SQL_HPP_INCLUDED
+# define YY_YY_HOME_XIAOMING_MINIOB_COMPETITION_SRC_OBSERVER_SQL_PARSER_YACC_SQL_HPP_INCLUDED
 /* Debug traces.  */
 #ifndef YYDEBUG
 # define YYDEBUG 0
@@ -123,7 +123,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 126 "/home/xiaoming/miniob/src/observer/sql/parser/yacc_sql.y"
+#line 126 "/home/xiaoming/miniob-competition/src/observer/sql/parser/yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -145,7 +145,7 @@ union YYSTYPE
   int                               number;
   float                             floats;
 
-#line 149 "/home/xiaoming/miniob/src/observer/sql/parser/yacc_sql.hpp"
+#line 149 "/home/xiaoming/miniob-competition/src/observer/sql/parser/yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
@@ -173,4 +173,4 @@ struct YYLTYPE
 int yyparse (const char * sql_string, ParsedSqlResult * sql_result, void * scanner);
 
 
-#endif /* !YY_YY_HOME_XIAOMING_MINIOB_SRC_OBSERVER_SQL_PARSER_YACC_SQL_HPP_INCLUDED  */
+#endif /* !YY_YY_HOME_XIAOMING_MINIOB_COMPETITION_SRC_OBSERVER_SQL_PARSER_YACC_SQL_HPP_INCLUDED  */
