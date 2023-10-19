@@ -555,3 +555,11 @@ RC AggrFuncExpr::try_get_value(Value &value) const {
   }
   return RC::UNIMPLENMENT;
 }
+
+// AggrFuncExpr end...
+////////////////////////////////////////////////////
+
+// SubQueryExpr start..
+RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const {
+  return RC::UNIMPLENMENT;
+}

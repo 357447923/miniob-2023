@@ -50,6 +50,7 @@ enum class ExprType
   AGGRFUNCTION, ///< 聚合函数
   FUNC,         ///< 函数(非聚合)
   SUBQUERY,     ///< 子查询
+  SUBLIST,      ///< 存放子查询结果的表达式?可能是
 };
 
 /**
@@ -378,4 +379,21 @@ private:
   AggFuncType type_ = AggFuncType::FUNC_NONE;
   FieldExpr *field_ = nullptr;    // such as count(id), max(id), etc.
   ValueExpr *value_ = nullptr;    // such as count(1), count("xxx"), etc.
+};
+
+class SubQueryExpr : public Expression {
+  
+  RC get_value(const Tuple &tuple, Value &value) const override;
+
+  ExprType type() const override {
+    return ExprType::SUBQUERY;
+  }
+
+  AttrType value_type() const override {
+    LOG_ERROR("SubQueryExpr.value_type() waitting for implenment");
+    return AttrType::UNDEFINED;
+  };
+
+
+
 };
