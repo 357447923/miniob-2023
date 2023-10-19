@@ -73,7 +73,7 @@ void ProjectPhysicalOperator::add_projection(const std::vector<Expression *> &ex
       }break;
       case ExprType::FIELD: {
         Field &field = static_cast<FieldExpr *>(expr)->field();
-        TupleCellSpec *spec = new TupleCellSpec(field.table_name(), field.field_name());
+        TupleCellSpec *spec = new TupleCellSpec(field.table_name(), field.field_name(), nullptr);
         tuple_.add_cell_spec(spec, FUNC_NONE);
       }break;
       case ExprType::ARITHMETIC: {
