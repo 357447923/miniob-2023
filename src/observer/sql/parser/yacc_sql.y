@@ -73,7 +73,6 @@ static inline void modify_2_negative(Value *value) {
         INDEX
         CALC
         SELECT
-        DESC
         SHOW
         SYNC
         INSERT
@@ -105,7 +104,10 @@ static inline void modify_2_negative(Value *value) {
         JOIN
         ON
         GROUP
+        ORDER
         BY
+        ASC
+        DESC
         LOAD
         DATA
         INFILE
@@ -126,6 +128,7 @@ static inline void modify_2_negative(Value *value) {
 %union {
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
+  OrderSqlNode *                    order_condition;
   Value *                           value;
   enum CompOp                       comp;
   enum AggFuncType                  agg_func;
@@ -137,6 +140,7 @@ static inline void modify_2_negative(Value *value) {
   std::vector<Value> *              value_list;
   std::vector<std::vector<Value>> * value_lists;
   std::vector<ConditionSqlNode> *   condition_list;
+  std::vector<OrderSqlNode> *       order_condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::vector<RelAttrSqlNode> *     func_attr_list;
@@ -154,6 +158,7 @@ static inline void modify_2_negative(Value *value) {
 /** type 定义了各种解析后的结果输出的是什么类型。类型对应了 union 中的定义的成员变量名称 **/
 %type <number>              type
 %type <condition>           condition
+%type <order_condition>     order_condition
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
@@ -165,6 +170,8 @@ static inline void modify_2_negative(Value *value) {
 %type <value_lists>         value_lists
 %type <condition_list>      where
 %type <condition_list>      condition_list
+%type <order_condition_list> order
+%type <order_condition_list> order_condition_list
 %type <rel_attr_list>       group
 %type <rel_attr_list>       group_list
 %type <rel_attr>            group_item
@@ -564,7 +571,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where group
+    SELECT select_attr FROM ID rel_list where group order
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -585,6 +592,11 @@ select_stmt:        /*  select 语句的语法解析树*/
         std::reverse($7->begin(), $7->end());
         $$->selection.groups.swap(*$7);
         delete $7;
+      }
+      if ($8 != nullptr) {
+        std::reverse($8->begin(), $8->end());
+        $$->selection.orders.swap(*$8);
+        delete $8;
       }
       free($4);
     }
@@ -840,7 +852,7 @@ group:
     }else {
       $$ = $4;
     }
-    $$->push_back(*$3);
+    $$->emplace_back(*$3);
     delete $3;
   }
   ;
@@ -872,6 +884,87 @@ group_item:
     free($3);
   }
   ;
+
+order:
+  {
+    $$ = nullptr;
+  }
+  | ORDER BY order_condition order_condition_list {
+    if ($4 != nullptr) {
+      $$ = $4;
+    }else {
+      $$ = new std::vector<OrderSqlNode>;
+    }
+    $$->emplace_back(*$3);
+    delete $3;
+  }
+  ;
+order_condition_list:
+  {
+    $$ = nullptr;
+  }
+  | COMMA order_condition order_condition_list {
+    if ($3 != nullptr) {
+      $$ = $3;
+    }else {
+      $$ = new std::vector<OrderSqlNode>;
+    }
+    $$->emplace_back(*$2);
+    delete $2;
+  }
+  ;
+/*order_condition:
+  group_item ASC {
+    $$ = new OrderSqlNode;
+    $$->attribute = std::move(*$1);
+  }
+  | group_item DESC {
+
+  }
+  ;*/
+order_condition:
+  ID {
+    $$ = new OrderSqlNode;
+    $$->attribute.attribute_name = $1;
+    $$->is_asc = 1;
+    free($1);
+  }
+  | ID DOT ID {
+    $$ = new OrderSqlNode;
+    $$->attribute.relation_name = $1;
+    $$->attribute.attribute_name = $3;
+    $$->is_asc = 1;
+    free($1);
+    free($3);
+  }
+  | ID ASC {
+    $$ = new OrderSqlNode;
+    $$->attribute.attribute_name = $1;
+    $$->is_asc = 1;
+    free($1);
+  }
+  | ID DESC {
+    $$ = new OrderSqlNode;
+    $$->attribute.attribute_name = $1;
+    $$->is_asc = 0;
+    free($1);
+  }
+  | ID DOT ID ASC {
+    $$ = new OrderSqlNode;
+    $$->attribute.relation_name = $1;
+    $$->attribute.attribute_name = $3;
+    $$->is_asc = 1;
+    free($1);
+    free($3);
+  }
+  | ID DOT ID DESC {
+    $$ = new OrderSqlNode;
+    $$->attribute.relation_name = $1;
+    $$->attribute.attribute_name = $3;
+    $$->is_asc = 0;
+    free($1);
+    free($3);
+  }
 agg_func:
       MAX { $$ = FUNC_MAX; }
     | MIN { $$ = FUNC_MIN; }

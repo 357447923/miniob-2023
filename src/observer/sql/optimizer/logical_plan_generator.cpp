@@ -218,7 +218,7 @@ RC LogicalPlanGenerator::create_plan(
   }
   if (sorted_logical_oper) {
     sorted_logical_oper->add_child(std::move(*top_op));
-    top_op = &sorted_for_groupby;
+    top_op = &sorted_logical_oper;
   }
 
   // 投影算子  

@@ -98,8 +98,8 @@ struct ConditionSqlNode
 
 struct OrderSqlNode 
 {
-  RelAttrSqlNode attribute;
   int is_asc;
+  RelAttrSqlNode attribute;
 };
 
 
