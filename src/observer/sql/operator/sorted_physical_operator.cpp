@@ -73,6 +73,7 @@ RC SortedPhysicalOperator::fetch_and_sort_table() {
   std::sort(pair_sort_table.begin(), pair_sort_table.end(), cmp);
   LOG_INFO("Sort Table Success");
 
+
   for (int i = 0; i < pair_sort_table.size(); ++i) {
     ordered_idx_.emplace_back(pair_sort_table[i].second);
   }
@@ -115,7 +116,7 @@ Tuple *SortedPhysicalOperator::current_tuple() {
     return tuple;
   }
   if (it_ != ordered_idx_.end()) {
-    tuple->set_record((records_)[*it_][0]);
+    tuple->set_record((records_)[*it_]);
   }
   return tuple;
 }

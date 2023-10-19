@@ -174,6 +174,10 @@ RC SelectStmt::create(Db *db, const SelectSqlNode &select_sql, Stmt *&stmt)
     } else {
       // select id from xxx(查询时字段没写表名的情况，miniob中不考虑select id from x1, x2中id只有一个表中存在的情况)
       if (tables.size() != 1) {
+        if (!relation_attr.expression) {
+          LOG_ERROR("select schema should follow 'table.field' in miniob");
+          return RC::SQL_SYNTAX;
+        }
         if (relation_attr.expression->type() != ExprType::ARITHMETIC) {
           LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
           clean_expr_when_fail(query_expressions);

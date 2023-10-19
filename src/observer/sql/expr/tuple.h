@@ -128,15 +128,15 @@ public:
     return str;
   }
 
-  virtual void set_record(Record *record) {
+  virtual void set_record(std::vector<Record *> &records) {
     LOG_ERROR("Unimplenment, please check your tuple implenment set_record!");
   }
 
-  virtual void set_right_record(Record *record) {
+  virtual void set_right_record(std::vector<Record *> &records) {
     LOG_ERROR("Unimplenment, please check your tuple implenment set_record!");
   }
 
-  virtual RC get_record(std::vector<Record *> &record) const {
+  virtual RC get_record(std::vector<Record *> &records) const {
     return RC::INTERNAL;
   }
 };
@@ -159,7 +159,17 @@ public:
     speces_.clear();
   }
 
-  void set_record(Record *record) override
+  void set_record(std::vector<Record *> &records) override {
+    assert(!records.empty());
+    set_record(records.front());
+  }
+
+  void set_right_record(std::vector<Record *> &records) override {
+    assert(!records.empty());
+    set_record(records);
+  }
+
+  void set_record(Record *record)
   {
     this->record_ = record;
   }
@@ -329,8 +339,12 @@ RC get_record(std::vector<Record *> &record) const override {
   return tuple_->get_record(record);
 } 
 
-void set_record(Record *record) override {
+void set_record(std::vector<Record *> &record) override {
   tuple_->set_record(record);
+}
+
+void set_right_record(std::vector<Record *> &record) override {
+  tuple_->set_right_record(record);
 }
 
 #if 0
@@ -479,11 +493,22 @@ public:
     return right_->find_cell(spec, value);
   }
 
-  void set_record(Record *record) {
-    left_->set_record(record);
+  void set_record(std::vector<Record *> &record) {
+    // 此处是断言JoinTuple的子Tuple必定是RowTuple
+    // 这样做其实不好，但是遇到了一个bug: 如果这里没有断言的话
+    // 就只能用left_->set_record(record);right_->set_record(record);插入record
+    // 但是每次插入的时候又没有做首指针的移动, 会导致left_和right_持有同一个record(严重的bug)
+    // 当产生这个bug的时候，会使上层算子计算时出现很多意想不到的问题
+    // 如果是在这个方法移动指针的话又不好, 因为这里的std::vector<Record *> &record是别的类管理的
+    // 如果移动之后，集合中的Record *没有被其他地方引用的话, 可能导致内存泄漏
+    RowTuple *left = dynamic_cast<RowTuple *>(left_);
+    RowTuple *right = dynamic_cast<RowTuple *>(right_);
+    assert(record.size() >= 2);
+    left->set_record(record[0]);
+    right->set_record(record[1]);
   }
 
-  void set_right_record(Record *record) {
+  void set_right_record(std::vector<Record *> &record) {
     right_->set_right_record(record);
   }
 
@@ -546,20 +571,13 @@ public:
           cell = aggr_results_[i];
           return RC::SUCCESS;
         }
-        // if (common::is_blank(spec.table_name())) {
-          if ((expr->field() != nullptr && strcmp(expr->field()->field_name(), spec.field_name()) == 0) || 
-              (expr->value() != nullptr && strcmp(expr->value()->get_value().get_string().c_str(), spec.field_name()) == 0)) {
-                cell = aggr_results_[i];
-                return RC::SUCCESS;
-          }
-        // }
-        /*if (strcmp(expr->field()->table_name(), spec.table_name()) == 0 
-          && strcmp(expr->field()->field_name(), spec.field_name()) == 0) {
-          cell = field_results_[i];
+        if ((expr->field() != nullptr && strcmp(expr->field()->field_name(), spec.field_name()) == 0) || 
+            (expr->value() != nullptr && strcmp(expr->value()->get_value().get_string().c_str(), spec.field_name()) == 0)) {
+          cell = aggr_results_[i];
           return RC::SUCCESS;
-        }*/
+        }
       }
-      LOG_WARN("Couldn't find %s", spec.to_string());
+      LOG_WARN("Couldn't find %s", spec.to_string().c_str());
       return RC::NOTFOUND;
     }
 
@@ -578,7 +596,7 @@ public:
           return RC::SUCCESS;
       }
     }
-    LOG_WARN("Couldn't find %s", spec.to_string());
+    LOG_WARN("Couldn't find %s", spec.to_string().c_str());
     return RC::NOTFOUND;
   }
 
