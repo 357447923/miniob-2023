@@ -30,6 +30,8 @@ public:
 
   RC rewrite(std::unique_ptr<LogicalOperator> &oper, bool &change_made) override;
 
+  RC pushdownPredicate(std::unique_ptr<LogicalOperator>& oper, bool& change_made, LogicalOperator *child_logical_oper,std::vector<std::unique_ptr<Expression>> &pushdown_exprs);
+
 private:
   RC get_exprs_can_pushdown(
       std::unique_ptr<Expression> &expr, std::vector<std::unique_ptr<Expression>> &pushdown_exprs);

@@ -177,3 +177,5 @@ private:
   int   bitmap_len_ = 0;  /// 数据中的位图长度
   bool  owner_ = false;   /// 表示当前是否由record来管理内存
 };
+
+typedef std::vector<Record *> CompoundRecord;
