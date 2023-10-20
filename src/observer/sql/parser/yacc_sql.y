@@ -940,15 +940,7 @@ order_condition_list:
     delete $2;
   }
   ;
-/*order_condition:
-  group_item ASC {
-    $$ = new OrderSqlNode;
-    $$->attribute = std::move(*$1);
-  }
-  | group_item DESC {
 
-  }
-  ;*/
 order_condition:
   ID {
     $$ = new OrderSqlNode;
@@ -1008,8 +1000,12 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | IS { $$ = IS_NULL; }
     | IS NOT { $$ = NOT_NULL; }
-    | LIKE { $$ = LIKE_OP; }
-    | NOT LIKE { $$ = NOT_LIKE_OP; }
+    | EXISTS { $$ = EXISTS; }
+    | NOT EXISTS { $$ = NOT_EXISTS; }
+    | IN  { $$ = IN; }
+    | NOT IN { $$ = NOT_IN; }
+    | LIKE { $$ = LIKE; }
+    | NOT LIKE { $$ = NOT_LIKE; }
     ;
 
 load_data_stmt:

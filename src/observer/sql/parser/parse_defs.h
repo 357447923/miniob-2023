@@ -53,13 +53,17 @@ enum CompOp
   LESS_EQUAL,   ///< "<="
   IS_NULL,
   NOT_NULL,     ///< 对于NULL类型的运算，我暂且放这里
+  EXISTS,
+  NOT_EXISTS,
+  IN,
+  NOT_IN,
   NOT_EQUAL,    ///< "<>"
   LESS_THAN,    ///< "<"
   GREAT_EQUAL,  ///< ">="
   GREAT_THAN,   ///< ">"
-  NO_OP,
-  LIKE_OP,      //< "like" 
-  NOT_LIKE_OP,  //< "not like"
+  LIKE,
+  NOT_LIKE,
+  NO_OP
 };
 
 /**

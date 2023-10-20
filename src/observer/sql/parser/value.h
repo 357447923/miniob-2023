@@ -78,6 +78,29 @@ public:
     }
     return true;
   }
+
+
+  std::size_t operator()(const Value &other) const {
+    switch (other.attr_type_)
+    {
+    case INTS: case DATES: {
+      return std::hash<int>{}(other.get_int());
+    }break;
+    case CHARS: {
+      return std::hash<std::string>{}(other.get_string());
+    }break;
+    case BOOLEANS: {
+      return std::hash<bool>{}(other.get_boolean());
+    }break;
+    }
+
+    return 0;
+  }
+
+  bool operator==(const Value &other) const {
+   return compare(other) == RC::LEFT_EQ_ANOTHER;
+  }
+
   Value &operator=(const Value &other) = default;
   
   void set_type(AttrType type)

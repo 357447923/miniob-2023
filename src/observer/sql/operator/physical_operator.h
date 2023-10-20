@@ -87,6 +87,18 @@ public:
     return children_;
   }
 
+  void set_parent_tuple(const Tuple *tuple) {
+    for (auto &child : children_) {
+      child->set_parent_tuple(tuple);
+    }
+    parent_tuple_ = tuple;
+  }
+
+  const Tuple *parent_tuple() const {
+    return parent_tuple_;
+  }
+
 protected:
   std::vector<std::unique_ptr<PhysicalOperator>> children_;
+  const Tuple *parent_tuple_ = nullptr;       /// < for complex sub query
 };

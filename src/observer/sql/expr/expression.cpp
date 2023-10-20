@@ -15,6 +15,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/parser/parse_defs.h"
+#include "sql/operator/project_physical_operator.h"
+#include "sql/stmt/select_stmt.h"
 
 using namespace std;
 
@@ -561,5 +563,50 @@ RC AggrFuncExpr::try_get_value(Value &value) const {
 
 // SubQueryExpr start..
 RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const {
-  return RC::UNIMPLENMENT;
+  assert(sub_query_oper_ != nullptr);
+  sub_query_oper_->set_parent_tuple(&tuple);
+  return get_value(value);
+}
+
+RC SubQueryExpr::get_value(Value &value) const {
+  RC rc = sub_query_oper_->next();
+  if (RC::RECORD_EOF == rc) {
+    value.set_null();
+  }
+  if (RC::SUCCESS != rc) {
+    return rc;
+  }
+  Tuple *tuple = sub_query_oper_->current_tuple();
+  if (tuple == nullptr) {
+    LOG_ERROR("failed to get current record. rc=%s", strrc(rc));
+    return RC::INTERNAL;
+  }
+  rc = tuple->cell_at(0, value);
+  return rc;
+}
+
+SubQueryListExpr::SubQueryListExpr(std::vector<Value> &values) {
+  if (values.empty()) {
+    return;
+  }
+  AttrType type = values[0].attr_type();
+  for (auto &value : values) {
+    if (value.attr_type() != type) {
+      LOG_WARN("add sub query list error, type unmatch!");
+    }
+    values_.insert(value);
+  }
+}
+
+SubQueryListExpr::SubQueryListExpr(Value *values, int size) {
+  if (size <= 0) {
+    return;
+  }
+  AttrType type = values[0].attr_type();
+  for (int i = 0; i < size; i++) {
+    if (values[i].attr_type() != type) {
+      LOG_WARN("add sub query list error, type unmatch!");
+    }
+    values_.insert(values[i]);
+  }
 }

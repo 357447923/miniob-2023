@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
@@ -24,6 +25,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 
 class Tuple;
+class ProjectPhysicalOperator;
+class SelectStmt;
 
 /**
  * @defgroup Expression
@@ -50,7 +53,7 @@ enum class ExprType
   AGGRFUNCTION, ///< 聚合函数
   FUNC,         ///< 函数(非聚合)
   SUBQUERY,     ///< 子查询
-  SUBLIST,      ///< 存放子查询结果的表达式?可能是
+  SUBLIST,      ///< IN(1, 2, 3)这样的表达式
 };
 
 /**
@@ -382,8 +385,14 @@ private:
 };
 
 class SubQueryExpr : public Expression {
-  
+public:
+  SubQueryExpr() = default;
+  /**
+   * 设置父tuple并且获取值
+   */
   RC get_value(const Tuple &tuple, Value &value) const override;
+
+  RC get_value(Value &value) const;
 
   ExprType type() const override {
     return ExprType::SUBQUERY;
@@ -394,6 +403,56 @@ class SubQueryExpr : public Expression {
     return AttrType::UNDEFINED;
   };
 
+  void set_sub_query(ProjectPhysicalOperator *sub_query) {
+    this->sub_query_oper_ = sub_query;
+  }
 
+  void set_stmt(SelectStmt *stmt) {
+    stmt_ = stmt;
+  }
 
+  ProjectPhysicalOperator *sub_query_oper() {
+    return sub_query_oper_;
+  }
+
+  SelectStmt *select_stmt() {
+    return stmt_;
+  }
+
+private:
+  ProjectPhysicalOperator *sub_query_oper_ = nullptr;
+  SelectStmt *stmt_ = nullptr;
+};
+
+class SubQueryListExpr : public Expression {
+public:
+  SubQueryListExpr(std::vector<Value> &values);
+
+  SubQueryListExpr(Value *, int size);
+  
+  RC get_value(const Tuple &tuple, Value &value) const override {
+    return RC::UNIMPLENMENT;
+  }
+
+  RC try_get_value(Value &value) const override {
+    return RC::UNIMPLENMENT;
+  }
+
+  ExprType type() const override {
+    return ExprType::SUBLIST;
+  }
+
+  AttrType value_type() const override {
+    if (values_.empty()) {
+      return AttrType::UNDEFINED;
+    }
+    return values_.begin()->attr_type();
+  }
+
+  bool contains(const Value &val) const {
+    return values_.contains(val);
+  }
+
+private:
+  std::unordered_set<Value, Value> values_;
 };
