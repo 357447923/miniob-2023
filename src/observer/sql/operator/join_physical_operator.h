@@ -25,7 +25,9 @@ See the Mulan PSL v2 for more details. */
 class NestedLoopJoinPhysicalOperator : public PhysicalOperator {
    public:
     NestedLoopJoinPhysicalOperator();
-    virtual ~NestedLoopJoinPhysicalOperator() = default;
+    ~NestedLoopJoinPhysicalOperator() {
+        std::cout << (int)predicates_[0]->type() << std::endl;
+    }
 
     PhysicalOperatorType type() const override {
         return PhysicalOperatorType::NESTED_LOOP_JOIN;

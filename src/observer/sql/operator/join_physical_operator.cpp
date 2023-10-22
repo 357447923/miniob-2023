@@ -47,8 +47,7 @@ RC NestedLoopJoinPhysicalOperator::next() {
     }
     // 如果需要不遍历下一条左表的记录
     if (filtered_rht_.end() != rht_it_) {
-        Record temp(rht_[*rht_it_]);
-        joined_tuple_.set_right_record(&temp);
+        joined_tuple_.set_right_record(rht_[*rht_it_]);
         rht_it_++;
         return RC::SUCCESS;
     }
@@ -176,19 +175,6 @@ RC NestedLoopJoinPhysicalOperator::fetch_right_table() {
         }
     }
     LOG_INFO("Fetch Right Table Success! There are %d rows in right table.", rht_.size());
-    for (const Record& record : rht_) {
-        // 访问 Record 对象的各个成员和信息
-        // 例如，输出 RID、数据长度、位图长度、是否由 Record 管理内存等信息
-        std::cout << "RID: " << record.rid().page_num << ", " << record.rid().slot_num << std::endl;
-        std::cout << "Data Length: " << record.len() << std::endl;
-        std::cout << "Bitmap Length: " << record.bitmap_len() << std::endl;
-        // 输出 data_ 字段的内容
-        std::cout << "Data: ";
-        for (int i = 0; i < record.len(); ++i) {
-            std::cout << record.data()[i];
-        }
-        std::cout << std::endl;
-    }
     if (RC::RECORD_EOF == rc) {
         return RC::SUCCESS;
     }
@@ -200,8 +186,7 @@ RC NestedLoopJoinPhysicalOperator::filter_right_table() {
     filtered_rht_.clear();
     rht_it_ = filtered_rht_.end();
     for (size_t i = 0; i < rht_.size(); ++i) {
-        Record temp = rht_[i];
-        joined_tuple_.set_right_record(&temp);
+        joined_tuple_.set_right_record(rht_[i]);
         bool filter_result = false;
         if (RC::SUCCESS != (rc = filter(joined_tuple_, filter_result))) {
             LOG_ERROR("JoinOperater do predicate Failed. RC = %d : %s", rc, strrc(rc));
@@ -209,6 +194,7 @@ RC NestedLoopJoinPhysicalOperator::filter_right_table() {
         }
         if (filter_result) {
             filtered_rht_.emplace_back(i);
+            LOG_INFO("add Row: %d",i);
         }
     }
     rht_it_ = filtered_rht_.begin();
