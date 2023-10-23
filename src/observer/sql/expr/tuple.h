@@ -508,8 +508,10 @@ public:
     right->set_record(record[1]);
   }
 
-  void set_right_record(std::vector<Record *> &record) {
-    right_->set_right_record(record);
+  void set_right_record(Record& record) {
+    std::vector<Record*> tempRecord;
+    tempRecord.emplace_back(&record);
+    right_->set_right_record(tempRecord);
   }
 
   RC get_record(std::vector<Record *> &record) const override {

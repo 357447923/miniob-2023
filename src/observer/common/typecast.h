@@ -17,7 +17,7 @@ namespace common
         [BOOLEANS] = nullptr,
     };
 
-    inline static RC type_cast(Value& value, AttrType target_type) {
+    static RC type_cast(Value& value, AttrType target_type) {
         type_cast_t func = type_cast_table[value.attr_type()];
         if (func == nullptr) {
             LOG_ERROR("type:'%s' can't be cast to another type", attr_type_to_string(value.attr_type()));

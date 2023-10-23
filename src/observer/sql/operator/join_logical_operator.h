@@ -31,6 +31,11 @@ public:
   {
     return LogicalOperatorType::JOIN;
   }
-
+  void set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
+  std::vector<std::unique_ptr<Expression>> &predicates()
+  {
+    return predicates_;
+  }
 private:
+  std::vector<std::unique_ptr<Expression>> predicates_;
 };

@@ -134,7 +134,7 @@ struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
   std::vector<std::string>        relations;     ///< 查询的表
-  // std::vector<JoinSqlNode>        join;          ///< inner join连接
+  std::vector<std::vector<ConditionSqlNode>> join_conditions;  ///< 存放 on 后面的连接条件
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<RelAttrSqlNode>     groups;        ///< 分组信息
   std::vector<OrderSqlNode>     orders;          ///< 升降序信息
@@ -299,6 +299,11 @@ struct ErrorSqlNode
   std::string error_msg;
   int         line;
   int         column;
+};
+
+struct RelationAndConditionTempList {
+    std::vector<std::string> _rel_list;
+    std::vector<std::vector<ConditionSqlNode>> _condition_list;
 };
 
 /**

@@ -26,6 +26,4 @@ GPATH
 GTAGS
 docs/book
 observe.log.*
-./src/observer/sql/parser/gen_parser.sh
-yacc_sql.output
 #*#

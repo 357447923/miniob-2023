@@ -39,6 +39,7 @@ RC TableScanPhysicalOperator::next()
   while (record_scanner_.has_next()) {
     rc = record_scanner_.next(current_record_);
     // 设置位图长度
+    LOG_INFO("load table: %s",table_->table_meta().name());
     int bitmap_len = common::bitmap_size(table_->table_meta().field_metas()->size());
     current_record_.set_bitmap_len(bitmap_len);
     if (rc != RC::SUCCESS) {

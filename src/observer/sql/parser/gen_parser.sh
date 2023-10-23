@@ -1,3 +1,3 @@
 #!/bin/bash
-flex --outfile /home/xiaoming/miniob/src/observer/sql/parser/lex_sql.cpp --header-file=lex_sql.h /home/xiaoming/miniob/src/observer/sql/parser/lex_sql.l
-`which bison` -v -d -Wcounterexamples --output /home/xiaoming/miniob/src/observer/sql/parser/yacc_sql.cpp /home/xiaoming/miniob/src/observer/sql/parser/yacc_sql.y
+flex --outfile lex_sql.cpp --header-file=lex_sql.h lex_sql.l
+`which bison` -d -Wcounterexamples --output yacc_sql.cpp yacc_sql.y

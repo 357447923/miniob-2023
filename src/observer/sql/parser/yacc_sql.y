@@ -144,6 +144,7 @@ static inline void modify_2_negative(Value *value) {
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
   std::vector<RelAttrSqlNode> *     func_attr_list;
+  RelationAndConditionTempList*     relationAndConditionTempList;
   char *                            string;
   int                               number;
   float                             floats;
@@ -172,6 +173,7 @@ static inline void modify_2_negative(Value *value) {
 %type <condition_list>      condition_list
 %type <order_condition_list> order
 %type <order_condition_list> order_condition_list
+%type <condition_list>      inner_join_conditions
 %type <rel_attr_list>       group
 %type <rel_attr_list>       group_list
 %type <rel_attr>            group_item
@@ -182,6 +184,7 @@ static inline void modify_2_negative(Value *value) {
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
+%type <relationAndConditionTempList>       rel_condition_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -571,7 +574,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_list where group order
+    SELECT select_attr FROM ID rel_condition_list where group order
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -579,7 +582,9 @@ select_stmt:        /*  select 语句的语法解析树*/
         delete $2;
       }
       if ($5 != nullptr) {
-        $$->selection.relations.swap(*$5);
+        $$->selection.relations.swap($5->_rel_list);
+        $$->selection.join_conditions.swap($5->_condition_list);
+        std::reverse($$->selection.join_conditions.begin(), $$->selection.join_conditions.end());
         delete $5;
       }
       $$->selection.relations.push_back($4);
@@ -778,6 +783,56 @@ rel_list:
       free($2);
     }
     ;
+rel_condition_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    /* , t1  */
+    | COMMA ID rel_condition_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        // $$ = new std::vector<std::string>;
+        $$ = new RelationAndConditionTempList;
+        $$->_rel_list = *(new std::vector<std::string>);
+        $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
+      }
+      $$->_rel_list.push_back($2);
+      free($2);
+    }
+    // inner join t1 on
+    | INNER JOIN ID condition_list rel_condition_list{
+      if ($5 != nullptr) {
+        $$ = $5;
+      } else {
+        $$ = new RelationAndConditionTempList;
+        $$->_rel_list = *(new std::vector<std::string>);
+        $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
+      }
+      if($4 != nullptr) {
+          $$->_condition_list.push_back(*($4));
+          delete $4;
+      }
+      $$->_rel_list.push_back($3);
+      free($3);
+    }
+    ;
+
+inner_join_conditions:
+	/* empty */ {
+    $$ = nullptr;
+  }
+	| ON condition condition_list{
+    if($3 != nullptr) {
+      $$ = $3;
+    } else {
+      $$ = new std::vector<ConditionSqlNode>; 
+    }
+    $$->emplace_back(*$2);
+    delete $2;
+	}
+	;
 where:
     /* empty */
     {
