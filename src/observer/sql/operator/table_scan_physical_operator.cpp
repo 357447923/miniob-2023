@@ -25,6 +25,18 @@ RC TableScanPhysicalOperator::open(Trx *trx)
     tuple_.set_schema(table_, table_->table_meta().field_metas());
   }
   trx_ = trx;
+  for (auto &expr : predicates_) {
+    if (expr->type() == ExprType::COMPARISON) {
+      Expression *expression = ((ComparisonExpr *)expr.get())->right().get();
+      if (expression->type() == ExprType::SUBQUERY) {
+        ((SubQueryExpr *)expr.get())->set_trx(trx);
+        continue;
+      }
+    }
+    if (expr->type() == ExprType::SUBQUERY) {
+      ((SubQueryExpr *)expr.get())->set_trx(trx);
+    }
+  }
   return rc;
 }
 

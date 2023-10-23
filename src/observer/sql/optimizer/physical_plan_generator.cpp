@@ -94,7 +94,137 @@ RC PhysicalPlanGenerator::create(LogicalOperator& logical_operator, unique_ptr<P
             return RC::INVALID_ARGUMENT;
         }
     }
+  return rc;
+}
+
+RC PhysicalPlanGenerator::create_subquery(unique_ptr<Expression> &expr) {
+  // 处理过滤条件中的子查询, 用子查询的逻辑算子创建出物理算子
+  if (expr->type() == ExprType::SUBQUERY) {
+    SubQueryExpr *subquery_expr = static_cast<SubQueryExpr *>(expr.get());
+    unique_ptr<PhysicalOperator> subquery_phy_oper;
+    RC rc = create_plan(*subquery_expr->sub_query_logical(), subquery_phy_oper);
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("subquery physical operator create error, please check by debug");
+      return rc;
+    }
+    subquery_expr->set_sub_query_operator(static_cast<ProjectPhysicalOperator *>(subquery_phy_oper.get()));
+    subquery_phy_oper.release();
+  }
+  return RC::SUCCESS;
+}
+
+RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, unique_ptr<PhysicalOperator> &oper)
+{
+  vector<unique_ptr<Expression>> &predicates = table_get_oper.predicates();
+  // 看看是否有可以用于索引查找的表达式
+  Table *table = table_get_oper.table();
+
+  Index *index = nullptr;
+  ValueExpr *value_expr = nullptr;
+  for (auto &expr : predicates) {
+    if (expr->type() == ExprType::COMPARISON) {
+      auto comparison_expr = static_cast<ComparisonExpr *>(expr.get());
+      // 简单处理，就找等值查询
+      if (comparison_expr->comp() != EQUAL_TO) {
+        continue;
+      }
+
+      unique_ptr<Expression> &left_expr = comparison_expr->left();
+      unique_ptr<Expression> &right_expr = comparison_expr->right();
+      // 左右比较的一边最少是一个值
+      if (left_expr->type() != ExprType::VALUE && right_expr->type() != ExprType::VALUE) {
+        continue;
+      }
+
+      FieldExpr *field_expr = nullptr;
+      if (left_expr->type() == ExprType::FIELD) {
+        ASSERT(right_expr->type() == ExprType::VALUE, "right expr should be a value expr while left is field expr");
+        field_expr = static_cast<FieldExpr *>(left_expr.get());
+        value_expr = static_cast<ValueExpr *>(right_expr.get());
+      } else if (right_expr->type() == ExprType::FIELD) {
+        ASSERT(left_expr->type() == ExprType::VALUE, "left expr should be a value expr while right is a field expr");
+        field_expr = static_cast<FieldExpr *>(right_expr.get());
+        value_expr = static_cast<ValueExpr *>(left_expr.get());
+      }
+
+      if (field_expr == nullptr) {
+        continue;
+      }
+
+      const Field &field = field_expr->field();
+      index = table->find_index_by_field(field.field_name());
+      if (nullptr != index) {
+        break;
+      }
+    }
+  }
+
+  if (index != nullptr) {
+    ASSERT(value_expr != nullptr, "got an index but value expr is null ?");
+
+    const Value &value = value_expr->get_value();
+    IndexScanPhysicalOperator *index_scan_oper = new IndexScanPhysicalOperator(
+          table, index, table_get_oper.readonly(), 
+          &value, true /*left_inclusive*/, 
+          &value, true /*right_inclusive*/);
+          
+    index_scan_oper->set_predicates(std::move(predicates));
+    oper = unique_ptr<PhysicalOperator>(index_scan_oper);
+    LOG_TRACE("use index scan");
+  } else {
+    auto table_scan_oper = new TableScanPhysicalOperator(table, table_get_oper.readonly());
+    for (auto &predicate : predicates) {
+      RC rc = create_subquery(predicate);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+    }
+    table_scan_oper->set_predicates(std::move(predicates));
+    oper = unique_ptr<PhysicalOperator>(table_scan_oper);
+    LOG_TRACE("use table scan");
+  }
+
+  return RC::SUCCESS;
+}
+
+RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, unique_ptr<PhysicalOperator> &oper)
+{
+  vector<unique_ptr<LogicalOperator>> &children_opers = pred_oper.children();
+  ASSERT(children_opers.size() == 1, "predicate logical operator's sub oper number should be 1");
+
+  LogicalOperator &child_oper = *children_opers.front();
+
+  unique_ptr<PhysicalOperator> child_phy_oper;
+  RC rc = create(child_oper, child_phy_oper);
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("failed to create child operator of predicate operator. rc=%s", strrc(rc));
     return rc;
+  }
+
+  vector<unique_ptr<Expression>> &expressions = pred_oper.expressions();
+  ASSERT(expressions.size() == 1, "predicate logical operator's children should be 1");
+
+  unique_ptr<Expression> expression = std::move(expressions.front());
+  if (expression->type() == ExprType::COMPARISON) {
+    ComparisonExpr *expr = (ComparisonExpr *)expression.get();
+    rc = create_subquery(expr->right());
+    if (rc != RC::SUCCESS) {
+      LOG_ERROR("create sub query physical operator error");
+      return rc;
+    }
+  }else if (expression->type() == ExprType::CONJUNCTION) {
+    ConjunctionExpr *expr = (ConjunctionExpr *)expression.get();
+    for (auto &expression : expr->children()) {
+      rc = create_subquery(expression);
+      if (rc != RC::SUCCESS) {
+        LOG_ERROR("create sub query physical operator error");
+        return rc;
+      }
+    }
+  }
+  oper = unique_ptr<PhysicalOperator>(new PredicatePhysicalOperator(std::move(expression)));
+  oper->add_child(std::move(child_phy_oper));
+  return rc;
 }
 
 RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator& table_get_oper, unique_ptr<PhysicalOperator>& oper) {

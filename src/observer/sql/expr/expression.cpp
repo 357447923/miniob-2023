@@ -15,8 +15,9 @@ See the Mulan PSL v2 for more details. */
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/parser/parse_defs.h"
-#include "sql/operator/project_physical_operator.h"
 #include "sql/stmt/select_stmt.h"
+#include "sql/operator/project_physical_operator.h"
+#include "sql/operator/project_logical_operator.h"
 
 using namespace std;
 
@@ -177,6 +178,75 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   Value left_value;
   Value right_value;
 
+  bool bool_value = false;
+
+  // for [not] exists
+  if (comp_ == CompOp::EXISTS_OP || comp_ == CompOp::NOT_EXISTS_OP) {
+    assert(right_->type() == ExprType::SUBQUERY);
+    const SubQueryExpr *expr = static_cast<const SubQueryExpr *>(right_.get());
+    expr->open_sub_query();
+    RC rc = expr->get_value(tuple, right_value);
+    if (RC::SUCCESS != rc && RC::RECORD_EOF != rc) {
+      return rc;
+    }
+    expr->close_sub_query();
+    value.set_boolean(comp_ == CompOp::EXISTS_OP? rc == RC::SUCCESS: rc == RC::RECORD_EOF);
+    return RC::SUCCESS;
+  }
+  // for [not] in
+  if (comp_ == CompOp::IN_OP || comp_ == CompOp::NOT_IN_OP) {
+    RC rc = left_->get_value(tuple, left_value);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+    if (left_value.is_null()) {
+      value.set_boolean(false);
+      return rc;    // success
+    }
+    std::vector<Value> right_cells;
+    right_cells.emplace_back(Value());
+    if (ExprType::SUBQUERY == right_->type()) {
+      auto sub_query_expr = (const SubQueryExpr *)right_.get();
+      sub_query_expr->open_sub_query();
+      while (RC::SUCCESS == (rc = sub_query_expr->get_value(tuple, right_cells.back()))) {
+        right_cells.emplace_back(Value());
+      }
+      sub_query_expr->close_sub_query();
+      if (RC::RECORD_EOF != rc) {
+        LOG_ERROR("[NOT] IN Get SubQuery Value Failed. RC = %d:%s", rc, strrc(rc));
+        return rc;
+      }
+      right_cells.pop_back();
+    }else {
+      assert(ExprType::SUBLIST == right_->type());
+      auto list_expr = (const ListQueryExpr *)right_.get();
+      value.set_boolean(list_expr->contains(left_value));
+      return RC::SUCCESS;
+    }
+    
+    auto has_null = [](const std::vector<Value> &values) {
+      for (auto &value : values) {
+        if (value.is_null()) {
+          return true;
+        }
+      }
+      return false;
+    };
+    auto contains = [&left_value](const std::vector<Value> &values) {
+      for (auto &value : values) {
+        if (value == left_value) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    bool res = CompOp::IN_OP == comp_? contains(right_cells)
+                                     : (has_null(right_cells)? false: !contains(right_cells));
+    value.set_boolean(res);
+    return RC::SUCCESS;
+  }
+
   RC rc = left_->get_value(tuple, left_value);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
@@ -188,7 +258,6 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     return rc;
   }
 
-  bool bool_value = false;
   rc = compare_value(left_value, right_value, bool_value);
   if (rc == RC::SUCCESS) {
     value.set_boolean(bool_value);
@@ -561,52 +630,82 @@ RC AggrFuncExpr::try_get_value(Value &value) const {
 // AggrFuncExpr end...
 ////////////////////////////////////////////////////
 
-// SubQueryExpr start..
+SubQueryExpr::~SubQueryExpr() {
+  if (select_stmt_ != nullptr) {
+      delete select_stmt_;
+      select_stmt_ = nullptr;
+    }
+    if (sub_query_logical_ != nullptr) {
+      delete sub_query_logical_;
+      sub_query_logical_ = nullptr;
+    }
+    if (sub_query_operator_ != nullptr) {
+      delete sub_query_operator_;
+      sub_query_operator_ = nullptr;
+    }
+}
+
+// SubQueryExpr start...
 RC SubQueryExpr::get_value(const Tuple &tuple, Value &value) const {
-  assert(sub_query_oper_ != nullptr);
-  sub_query_oper_->set_parent_tuple(&tuple);
+  assert(nullptr != sub_query_operator_);
+  sub_query_operator_->set_parent_tuple(&tuple);
   return get_value(value);
 }
 
 RC SubQueryExpr::get_value(Value &value) const {
-  RC rc = sub_query_oper_->next();
+  RC rc = sub_query_operator_->next();
   if (RC::RECORD_EOF == rc) {
     value.set_null();
   }
   if (RC::SUCCESS != rc) {
     return rc;
   }
-  Tuple *tuple = sub_query_oper_->current_tuple();
-  if (tuple == nullptr) {
-    LOG_ERROR("failed to get current record. rc=%s", strrc(rc));
+  Tuple *child_tuple = sub_query_operator_->current_tuple();
+  if (nullptr == child_tuple) {
+    LOG_WARN("failed to get current record. rc=%s", strrc(rc));
     return RC::INTERNAL;
   }
-  rc = tuple->cell_at(0, value);
+  rc = child_tuple->cell_at(0, value);
   return rc;
 }
 
-SubQueryListExpr::SubQueryListExpr(std::vector<Value> &values) {
-  if (values.empty()) {
-    return;
-  }
+RC SubQueryExpr::open_sub_query() const {
+  assert(sub_query_operator_ != nullptr);
+  return sub_query_operator_->open(trx_);
+}
+
+RC SubQueryExpr::close_sub_query() const {
+  assert(sub_query_operator_ != nullptr);
+  return sub_query_operator_->close();
+}
+
+// SubQueryExpr end...
+////////////////////////////////////////////////////
+
+// ListQueryExpr start...
+ListQueryExpr::ListQueryExpr(const Value *values, int size) {
+  assert(size > 0);
   AttrType type = values[0].attr_type();
-  for (auto &value : values) {
-    if (value.attr_type() != type) {
-      LOG_WARN("add sub query list error, type unmatch!");
-    }
-    values_.insert(value);
+  for (int i = 0; i < size; i++) {
+    assert(values->attr_type() == type);
+    value_list_.insert(values[i]);
   }
 }
 
-SubQueryListExpr::SubQueryListExpr(Value *values, int size) {
-  if (size <= 0) {
-    return;
-  }
+ListQueryExpr::ListQueryExpr(const std::vector<Value> &values) {
+  assert(!values.empty());
   AttrType type = values[0].attr_type();
-  for (int i = 0; i < size; i++) {
-    if (values[i].attr_type() != type) {
-      LOG_WARN("add sub query list error, type unmatch!");
-    }
-    values_.insert(values[i]);
+  for (auto &value : values) {
+    assert(value.attr_type() == type);
+    value_list_.insert(value);
   }
+}
+
+ListQueryExpr::ListQueryExpr(std::unordered_set<Value, Value> &value_list) {
+  assert(!value_list_.empty());
+  AttrType type = value_list.begin()->attr_type();
+  for (auto &value : value_list) {
+    assert(value.attr_type() == type);
+  }
+  value_list_.swap(value_list);
 }

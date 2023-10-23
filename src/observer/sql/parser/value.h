@@ -78,27 +78,26 @@ public:
     }
     return true;
   }
-
-
-  std::size_t operator()(const Value &other) const {
-    switch (other.attr_type_)
+  
+  std::size_t operator()(const Value& obj) const {
+    switch (obj.attr_type_)
     {
     case INTS: case DATES: {
-      return std::hash<int>{}(other.get_int());
+      return std::hash<int>{}(get_int());
+    }break;
+    case FLOATS: {
+      return std::hash<float>{}(get_float());
     }break;
     case CHARS: {
-      return std::hash<std::string>{}(other.get_string());
-    }break;
-    case BOOLEANS: {
-      return std::hash<bool>{}(other.get_boolean());
+      return std::hash<std::string>{}(get_string());
     }break;
     }
-
+    
     return 0;
   }
 
-  bool operator==(const Value &other) const {
-   return compare(other) == RC::LEFT_EQ_ANOTHER;
+  bool operator==(const Value& other) const {
+    return compare(other) == RC::LEFT_EQ_ANOTHER;
   }
 
   Value &operator=(const Value &other) = default;

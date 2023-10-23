@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include "common/date.h"
 #include "common/typecast.h"
+#include "sql/stmt/select_stmt.h"
 
 FilterStmt::~FilterStmt()
 {
@@ -80,6 +81,17 @@ RC get_table_and_field(Db *db, Table *default_table, std::unordered_map<std::str
 }
 
 /**
+ * 判断子查询是否合法
+ */
+static bool judge_subquery_correctness(SelectStmt *select_stmt) {
+  int query_size = select_stmt->query_expressions().size();
+  if (query_size != 1) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * 初始化filter中的非value
  */
 static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, 
@@ -91,19 +103,46 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
               ->try_get_value(const_cast<Value &>(val));
       if (rc == RC::SUCCESS) {
         filter_obj.init_value(val);
-      }else {
-        // 现在的情况能直接确认是计算表达式, 并且有一侧必为field。
-        ArithmeticExpr *expr = static_cast<ArithmeticExpr *>(attr.expression);
-        if (default_table == nullptr) {
-          // 处理多表
-          ArithmeticExpr::find_field_need(*tables, expr);
-        }else {
-          // 处理单表
-          ArithmeticExpr::find_field_need(default_table, expr);
-        }
-        filter_obj.init_attr(expr);
+        return rc;
       }
-    }else {
+      switch (attr.expression->type()) {
+        case ExprType::ARITHMETIC: {
+          // 如果是计算表达式, 则至少有一侧必为field。
+          ArithmeticExpr *expr = static_cast<ArithmeticExpr *>(attr.expression);
+          if (default_table == nullptr) {
+            // 处理多表
+            ArithmeticExpr::find_field_need(*tables, expr);
+          }else {
+            // 处理单表
+            ArithmeticExpr::find_field_need(default_table, expr);
+          }
+        }break;
+
+        default: {
+          LOG_ERROR("Unimplement this expression type:%d .", attr.expression->type());
+          return RC::UNIMPLENMENT;
+        }
+      }     
+      filter_obj.init_attr(attr.expression);
+    }else if (attr.sub_query != nullptr) {
+      SubQueryExpr *expr = new SubQueryExpr();
+      Stmt *stmt = nullptr;
+      RC rc = SelectStmt::create(db, *attr.sub_query, stmt);
+      if (rc != RC::SUCCESS) {
+        delete expr;
+        LOG_ERROR("selectStmt create error in create subquery");
+        return rc;
+      }
+      SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
+      // 判断生成的SelectStmt是否为合法的子查询规范, 也可以修改语法解析, 推荐修改语法解析
+      if (!judge_subquery_correctness(select_stmt)) {
+        delete expr;
+        delete select_stmt;
+        select_stmt = nullptr;
+      }
+      expr->set_stmt(select_stmt);
+      filter_obj.init_attr(expr);
+    } else {
       Table *table = nullptr;
       const FieldMeta *field = nullptr;
       RC rc = get_table_and_field(db, default_table, tables, attr, table, field);

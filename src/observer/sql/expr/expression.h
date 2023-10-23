@@ -25,8 +25,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 
 class Tuple;
-class ProjectPhysicalOperator;
 class SelectStmt;
+class LogicalOperator;
+class ProjectLogicalOperator;
+class ProjectPhysicalOperator;
 
 /**
  * @defgroup Expression
@@ -53,7 +55,7 @@ enum class ExprType
   AGGRFUNCTION, ///< 聚合函数
   FUNC,         ///< 函数(非聚合)
   SUBQUERY,     ///< 子查询
-  SUBLIST,      ///< IN(1, 2, 3)这样的表达式
+  SUBLIST,      ///< 用于例如 IN (1,2,3) 子句
 };
 
 /**
@@ -387,54 +389,73 @@ private:
 class SubQueryExpr : public Expression {
 public:
   SubQueryExpr() = default;
-  /**
-   * 设置父tuple并且获取值
-   */
-  RC get_value(const Tuple &tuple, Value &value) const override;
 
+  ~SubQueryExpr();
+
+  RC get_value(const Tuple &tuple, Value &value) const override;
   RC get_value(Value &value) const;
 
   ExprType type() const override {
     return ExprType::SUBQUERY;
   }
 
+  void set_stmt(SelectStmt *stmt) {
+    select_stmt_ = stmt;
+  }
+
+  SelectStmt *select_stmt() {
+    return select_stmt_;
+  }
+
+  void set_sub_query_logical(ProjectLogicalOperator *select_logical) {
+    sub_query_logical_ = select_logical;
+  }
+
+  ProjectLogicalOperator *sub_query_logical() {
+    return sub_query_logical_;
+  }
+
+  void set_sub_query_operator(ProjectPhysicalOperator *sub_query_operator) {
+    sub_query_operator_ = sub_query_operator;
+  }
+
+  const ProjectPhysicalOperator *sub_query_operator() const {
+    return sub_query_operator_;
+  }
+
+  void set_trx(Trx *trx) {
+    trx_ = trx;
+  }
+
+  RC open_sub_query() const;
+  RC close_sub_query() const;
+
   AttrType value_type() const override {
     LOG_ERROR("SubQueryExpr.value_type() waitting for implenment");
     return AttrType::UNDEFINED;
   };
 
-  void set_sub_query(ProjectPhysicalOperator *sub_query) {
-    this->sub_query_oper_ = sub_query;
-  }
-
-  void set_stmt(SelectStmt *stmt) {
-    stmt_ = stmt;
-  }
-
-  ProjectPhysicalOperator *sub_query_oper() {
-    return sub_query_oper_;
-  }
-
-  SelectStmt *select_stmt() {
-    return stmt_;
-  }
-
 private:
-  ProjectPhysicalOperator *sub_query_oper_ = nullptr;
-  SelectStmt *stmt_ = nullptr;
+  Trx *trx_ = nullptr;
+  SelectStmt *select_stmt_ = nullptr;       // 子查询的select语句, 不属于表达式管理
+  ProjectLogicalOperator *sub_query_logical_ = nullptr; // 子查询逻辑算子
+  ProjectPhysicalOperator *sub_query_operator_ = nullptr;   // 子查询的物理算子, 属于表达式管理(待定)
 };
 
-class SubQueryListExpr : public Expression {
+/**
+ * IN (1, 2, 3) 表达式 
+ */
+class ListQueryExpr : public Expression {
 public:
-  SubQueryListExpr(std::vector<Value> &values);
+  ListQueryExpr(const Value *, int size);
 
-  SubQueryListExpr(Value *, int size);
-  
+  ListQueryExpr(const std::vector<Value> &values);
+  /**
+   * 把入参的数据交换到ListQueryExpr对象中
+   */
+  ListQueryExpr(std::unordered_set<Value, Value> &value_list);
+
   RC get_value(const Tuple &tuple, Value &value) const override {
-    return RC::UNIMPLENMENT;
-  }
-
-  RC try_get_value(Value &value) const override {
     return RC::UNIMPLENMENT;
   }
 
@@ -442,17 +463,18 @@ public:
     return ExprType::SUBLIST;
   }
 
-  AttrType value_type() const override {
-    if (values_.empty()) {
-      return AttrType::UNDEFINED;
-    }
-    return values_.begin()->attr_type();
+  bool contains(const Value &value) const {
+    return value_list_.contains(value);
   }
 
-  bool contains(const Value &val) const {
-    return values_.contains(val);
+  const std::unordered_set<Value, Value> &value_list() const {
+    return value_list_;
   }
+
+  AttrType value_type() const override {
+    return value_list_.empty()? AttrType::UNDEFINED: (value_list_.begin())->attr_type();
+  };
 
 private:
-  std::unordered_set<Value, Value> values_;
+  std::unordered_set<Value, Value> value_list_;    // 用于存放数据(IN 的数据)
 };

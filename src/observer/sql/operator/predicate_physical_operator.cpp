@@ -29,7 +29,23 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     LOG_WARN("predicate operator must has one child");
     return RC::INTERNAL;
   }
-
+  if (expression_->type() == ExprType::CONJUNCTION) {
+    for (auto &expr : ((ConjunctionExpr *)expression_.get())->children()) {
+      Expression *expression = ((ComparisonExpr *)expr.get())->right().get();
+      if (expression->type() == ExprType::SUBQUERY) {
+        ((SubQueryExpr *)expression)->set_trx(trx);
+        continue;
+      }
+      if (expr->type() == ExprType::SUBQUERY) {
+        ((SubQueryExpr *)expr.get())->set_trx(trx);
+      }
+    }
+  }else if (expression_->type() == ExprType::COMPARISON) {
+    Expression *expression = ((ComparisonExpr *)expression_.get())->right().get();
+    if (expression->type() == ExprType::SUBQUERY) {
+      ((SubQueryExpr *)expression)->set_trx(trx);
+    }
+  }
   return children_[0]->open(trx);
 }
 
