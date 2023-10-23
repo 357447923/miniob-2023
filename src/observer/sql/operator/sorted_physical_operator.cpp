@@ -61,7 +61,7 @@ RC SortedPhysicalOperator::fetch_and_sort_table() {
         return order[i]? true: false;
       }
       if (cell_b.is_null()) {
-        return order[i]? true: false;
+        return order[i]? false: true;
       }
       if (cell_a != cell_b) {
         return order[i]? (cell_a.compare(cell_b) == RC::LEFT_LT_ANOTHER)
