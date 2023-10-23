@@ -802,7 +802,7 @@ rel_condition_list:
       free($2);
     }
     // inner join t1 on
-    | INNER JOIN ID inner_join_conditions rel_condition_list{
+    | INNER JOIN ID condition_list rel_condition_list{
       if ($5 != nullptr) {
         $$ = $5;
       } else {

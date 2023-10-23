@@ -44,7 +44,10 @@ RC PredicatePushdownRewriter::rewrite(std::unique_ptr<LogicalOperator>& oper, bo
             change_made = true;
             child_logical_oper->set_predicates(std::move(pushdown_exprs));
         }
+     } else if (child_oper->type() == LogicalOperatorType::PREDICATE) {
+        LOG_INFO("where behind on");
     }
+
     return rc;
 }
 
