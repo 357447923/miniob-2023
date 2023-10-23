@@ -584,6 +584,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       if ($5 != nullptr) {
         $$->selection.relations.swap($5->_rel_list);
         $$->selection.join_conditions.swap($5->_condition_list);
+        std::reverse($$->selection.join_conditions.begin(), $$->selection.join_conditions.end());
         delete $5;
       }
       $$->selection.relations.push_back($4);
@@ -787,7 +788,7 @@ rel_condition_list:
     {
       $$ = nullptr;
     }
-    /* , t1*/
+    /* , t1  */
     | COMMA ID rel_condition_list {
       if ($3 != nullptr) {
         $$ = $3;
@@ -795,26 +796,23 @@ rel_condition_list:
         // $$ = new std::vector<std::string>;
         $$ = new RelationAndConditionTempList;
         $$->_rel_list = *(new std::vector<std::string>);
-        $$->_condition_list = *(new std::vector<ConditionSqlNode>);
+        $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
       }
       $$->_rel_list.push_back($2);
       free($2);
     }
-    // inner join t1 where id = 
+    // inner join t1 on
     | INNER JOIN ID inner_join_conditions rel_condition_list{
       if ($5 != nullptr) {
         $$ = $5;
       } else {
         $$ = new RelationAndConditionTempList;
         $$->_rel_list = *(new std::vector<std::string>);
-        $$->_condition_list = *(new std::vector<ConditionSqlNode>);
+        $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
       }
       if($4 != nullptr) {
-        for (const ConditionSqlNode& condition : *$4) {
-          // 将元素拷贝到destinationVector中
-          $$->_condition_list.push_back(condition);
-        }
-        delete $4;
+          $$->_condition_list.push_back(*($4));
+          delete $4;
       }
       $$->_rel_list.push_back($3);
       free($3);

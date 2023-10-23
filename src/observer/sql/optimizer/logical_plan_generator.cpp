@@ -91,6 +91,7 @@ RC LogicalPlanGenerator::create_plan(
 
     const std::vector<Table*>& tables = select_stmt->tables();
     const std::vector<Expression*>& expressions = select_stmt->query_expressions();
+    int index = -1;
     for (Table* table : tables) {
         std::vector<Field> fields;
         for (const Expression* expression : expressions) {
@@ -117,11 +118,17 @@ RC LogicalPlanGenerator::create_plan(
             // table_get_oper  new JoinLogicalOperator
             //                      /             \
             // table_oper (1) ->  table_oper       table_get_oper
-            if (select_stmt->inner_join_filter_stmt() != nullptr) {
-                unique_ptr<LogicalOperator> on_predicate_oper;
-                RC rc = create_plan(select_stmt->inner_join_filter_stmt(), on_predicate_oper);
-                on_predicate_oper->add_child(std::move(unique_ptr<LogicalOperator>(join_oper)));
-                table_oper = std::move(on_predicate_oper);
+            if (select_stmt->inner_join_filter_stmts().size() != 0) {
+                index++;
+                if (index < select_stmt->inner_join_filter_stmts().size() && select_stmt->inner_join_filter_stmts().at(index) != nullptr) {
+                    /* code */
+                    unique_ptr<LogicalOperator> on_predicate_oper;
+                    RC rc = create_plan(select_stmt->inner_join_filter_stmts().at(index), on_predicate_oper);
+                    on_predicate_oper->add_child(std::move(unique_ptr<LogicalOperator>(join_oper)));
+                    table_oper = std::move(on_predicate_oper);
+                } else {
+                    table_oper = unique_ptr<LogicalOperator>(join_oper);
+                }
             } else {
                 table_oper = unique_ptr<LogicalOperator>(join_oper);
             }
@@ -139,40 +146,40 @@ RC LogicalPlanGenerator::create_plan(
         top_op = &predicate_oper;
     }
 
-  // sortby_4_groupby
-  unique_ptr<LogicalOperator> sorted_for_groupby;
-  // 如果是聚合函数(不包含groupby)，则不会生成sorted_4_groupby算子
-  if (select_stmt->orderby_for_groupby()) {
-    rc = create_plan(select_stmt->orderby_for_groupby(), sorted_for_groupby);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to create sorted for groupby. rc=%s", strrc(rc));
-      return rc;
+    // sortby_4_groupby
+    unique_ptr<LogicalOperator> sorted_for_groupby;
+    // 如果是聚合函数(不包含groupby)，则不会生成sorted_4_groupby算子
+    if (select_stmt->orderby_for_groupby()) {
+        rc = create_plan(select_stmt->orderby_for_groupby(), sorted_for_groupby);
+        if (rc != RC::SUCCESS) {
+            LOG_WARN("failed to create sorted for groupby. rc=%s", strrc(rc));
+            return rc;
+        }
     }
-  }
-  if (sorted_for_groupby) {
-    sorted_for_groupby->add_child(std::move(*top_op));
-    top_op = &sorted_for_groupby;
-  }
-  // groupby 算子创建
-  std::vector<AggrFuncExpr *> aggr_exprs;
-  std::vector<FieldExpr *> field_exprs;
-  const std::vector<Expression *> &exprs = select_stmt->query_expressions();
-  for (const auto &expr : exprs) {
-    switch (expr->type()) {
-    case ExprType::AGGRFUNCTION: {
-      aggr_exprs.emplace_back((AggrFuncExpr *)expr);
-      break;
+    if (sorted_for_groupby) {
+        sorted_for_groupby->add_child(std::move(*top_op));
+        top_op = &sorted_for_groupby;
     }
-    case ExprType::FIELD: {
-      field_exprs.emplace_back((FieldExpr *)expr);
-      break;
+    // groupby 算子创建
+    std::vector<AggrFuncExpr*> aggr_exprs;
+    std::vector<FieldExpr*> field_exprs;
+    const std::vector<Expression*>& exprs = select_stmt->query_expressions();
+    for (const auto& expr : exprs) {
+        switch (expr->type()) {
+            case ExprType::AGGRFUNCTION: {
+                aggr_exprs.emplace_back((AggrFuncExpr*)expr);
+                break;
+            }
+            case ExprType::FIELD: {
+                field_exprs.emplace_back((FieldExpr*)expr);
+                break;
+            }
+            case ExprType::ARITHMETIC: {
+                ArithmeticExpr::find_aggr_func((ArithmeticExpr*)expr, aggr_exprs);
+                break;
+            }
+        }
     }
-    case ExprType::ARITHMETIC: {
-      ArithmeticExpr::find_aggr_func((ArithmeticExpr *)expr, aggr_exprs);
-      break;
-    }
-    }
-  }
 
     unique_ptr<LogicalOperator> groupby_oper;
     const GroupByStmt* groupby_stmt = select_stmt->groupby_stmt();
@@ -222,16 +229,16 @@ RC LogicalPlanGenerator::create_plan(
 
     // having 算子
 
-  // sortby 算子
-  unique_ptr<LogicalOperator> sorted_logical_oper;
-  // TODO 封装到create_plan
-  if (select_stmt->orderby_stmt() != nullptr && !select_stmt->orderby_stmt()->orderby_units().empty()) {
-    sorted_logical_oper.reset(new SortedLogicalOperator(&select_stmt->orderby_stmt()->orderby_units()));
-  }
-  if (sorted_logical_oper) {
-    sorted_logical_oper->add_child(std::move(*top_op));
-    top_op = &sorted_logical_oper;
-  }
+    // sortby 算子
+    unique_ptr<LogicalOperator> sorted_logical_oper;
+    // TODO 封装到create_plan
+    if (select_stmt->orderby_stmt() != nullptr && !select_stmt->orderby_stmt()->orderby_units().empty()) {
+        sorted_logical_oper.reset(new SortedLogicalOperator(&select_stmt->orderby_stmt()->orderby_units()));
+    }
+    if (sorted_logical_oper) {
+        sorted_logical_oper->add_child(std::move(*top_op));
+        top_op = &sorted_logical_oper;
+    }
 
     // 投影算子
     unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(&expressions));

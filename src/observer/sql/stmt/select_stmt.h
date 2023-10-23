@@ -60,8 +60,8 @@ public:
   {
     return filter_stmt_;
   }
-  FilterStmt *inner_join_filter_stmt() const {
-    return inner_join_filter_stmt_;
+  std::vector<FilterStmt*> inner_join_filter_stmts() const {
+    return inner_join_filter_stmts_;
   }
   HavingStmt *having_stmt() const {
     return having_stmt_;
@@ -79,8 +79,8 @@ public:
 private:
   std::vector<Expression *> query_expressions_;
   std::vector<Table *> tables_;
+  std::vector<FilterStmt*> inner_join_filter_stmts_;
   FilterStmt *filter_stmt_ = nullptr;
-  FilterStmt *inner_join_filter_stmt_ = nullptr;
   GroupByStmt *groupby_stmt_ = nullptr;
   OrderByStmt *orderby_for_groupby_ = nullptr;
   OrderByStmt *orderby_stmt_ = nullptr;
