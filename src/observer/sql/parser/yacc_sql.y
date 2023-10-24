@@ -123,6 +123,7 @@ static inline void modify_2_negative(Value *value) {
         LE
         GE
         NE
+        LIKE
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -173,13 +174,12 @@ static inline void modify_2_negative(Value *value) {
 %type <condition_list>      condition_list
 %type <order_condition_list> order
 %type <order_condition_list> order_condition_list
-%type <condition_list>      inner_join_conditions
 %type <rel_attr_list>       group
 %type <rel_attr_list>       group_list
 %type <rel_attr>            group_item
 %type <rel_attr_list>       select_attr
 
-%type <relation_list>       rel_list
+
 
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
@@ -767,22 +767,7 @@ attr_list:
     }
     ;
 
-rel_list:
-    /* empty */
-    {
-      $$ = nullptr;
-    }
-    | COMMA ID rel_list {
-      if ($3 != nullptr) {
-        $$ = $3;
-      } else {
-        $$ = new std::vector<std::string>;
-      }
 
-      $$->push_back($2);
-      free($2);
-    }
-    ;
 rel_condition_list:
     /* empty */
     {
@@ -819,20 +804,6 @@ rel_condition_list:
     }
     ;
 
-inner_join_conditions:
-	/* empty */ {
-    $$ = nullptr;
-  }
-	| ON condition condition_list{
-    if($3 != nullptr) {
-      $$ = $3;
-    } else {
-      $$ = new std::vector<ConditionSqlNode>; 
-    }
-    $$->emplace_back(*$2);
-    delete $2;
-	}
-	;
 where:
     /* empty */
     {
@@ -1036,6 +1007,8 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | IS { $$ = IS_NULL; }
     | IS NOT { $$ = NOT_NULL; }
+    | LIKE { $$ = LIKE_OP; }
+    | NOT LIKE { $$ = NOT_LIKE_OP; }
     ;
 
 load_data_stmt:
