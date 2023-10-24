@@ -89,9 +89,9 @@ void GroupTuple::do_aggregate_done() {
       }
       Value &val = aggr_results_[i];
       if (val.attr_type() == INTS) {
-          val.set_float(val.get_int() / (counts_[i] * 1.0));
+        val.set_float(val.get_int() / (counts_[i] * 1.0));
       } else {
-          val.set_float(val.get_float() / counts_[i]);
+        val.set_float(val.get_float() / counts_[i]);
       }
       break;
     }

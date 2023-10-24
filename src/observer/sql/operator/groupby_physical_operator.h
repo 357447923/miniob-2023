@@ -22,7 +22,7 @@ public:
   RC close() override;
 
   Tuple *current_tuple() override; 
-
+  
 private:
   bool is_first_ = true;
   bool is_new_group_ = true;

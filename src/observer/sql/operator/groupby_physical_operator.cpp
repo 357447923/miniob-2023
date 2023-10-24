@@ -28,11 +28,21 @@ RC GroupByPhysicalOperator::next() {
   // 初次进入，就要对上一条记录的组记录进行初始化
   if (is_first_) {
     RC rc = children_[0]->next();
-    is_first_ = false;
-    is_new_group_ = true;
     if (RC::SUCCESS != rc) {
+      // 说明是一张空表, 空表可以返回COUNT和SUM值
+      if (rc == RC::RECORD_EOF) {
+        int field_expr_size = tuple_.field_exprs().size();
+        int aggr_expr_size = tuple_.aggr_func_exprs().size();
+        if (field_expr_size == 0 && aggr_expr_size != 0) {
+          tuple_.do_aggregate_when_first_eof();
+          is_record_eof_ = true;
+          return RC::SUCCESS;
+        }
+      }
       return rc;
     }
+    is_first_ = false;
+    is_new_group_ = true;
     // set initial value of pre_values_
     for (auto *unit : *units_) {
       pre_group_val_.emplace_back(Value());

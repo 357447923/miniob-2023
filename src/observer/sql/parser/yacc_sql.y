@@ -763,7 +763,7 @@ rel_attr:
       SelectSqlNode *sub_query = new SelectSqlNode;
       sub_query->attributes.push_back(*$3);
       if ($6 != nullptr) {
-        sub_query->relations.swap(*$6);
+        sub_query->relations.swap($6->_rel_list);
         delete $6;
       }
       sub_query->relations.push_back($5);
@@ -791,7 +791,8 @@ rel_attr:
       delete $3;
       free($5);
     }
-    | LBRACE value value_list RBRACE {
+    // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
+    | LBRACE value value_list RBRACE %prec UMINUS {
       $$ = new RelAttrSqlNode;
       if ($3 == nullptr) {
         $3 = new std::vector<Value>;
@@ -927,54 +928,12 @@ condition:
       delete $1;
       delete $3;
     }
-/*    | rel_attr IN LBRACE value value_list RBRACE {
-      $$ = new ConditionSqlNode;
-      $$->right_is_attr = 1;
-      if ($1->expression == nullptr) {
-        $$->left_is_attr = 1;
-        $$->left_attr = *$1;
-      }else if ($1->expression->type() != ExprType::VALUE) {
-        $$->left_is_attr = 1;
-        $$->left_attr = *$1;
-      }else {
-        $$->left_is_attr = 0;
-        $1->expression->try_get_value($$->left_value);
-      }
-      if ($5 == nullptr) {
-        $5 = new std::vector<Value>;
-      }
-      $5->push_back(*$4);
-      delete $4;
-      Expression *query_num_list = new ListQueryExpr(*$5);
-      $$->comp = IN_OP;
-      $$->right_attr.expression = query_num_list;
-      delete $1;
-      delete $5;
+    | rel_attr IN LBRACE value value_list RBRACE {
+      $$ = nullptr;
     }
     | rel_attr NOT IN LBRACE value value_list RBRACE {
-      $$ = new ConditionSqlNode;
-      $$->right_is_attr = 1;
-      if ($1->expression == nullptr) {
-        $$->left_is_attr = 1;
-        $$->left_attr = *$1;
-      }else if ($1->expression->type() != ExprType::VALUE) {
-        $$->left_is_attr = 1;
-        $$->left_attr = *$1;
-      }else {
-        $$->left_is_attr = 0;
-        $1->expression->try_get_value($$->left_value);
-      }
-      if ($6 == nullptr) {
-        $6 = new std::vector<Value>;
-      }
-      $6->push_back(*$5);
-      delete $5;
-      Expression *query_num_list = new ListQueryExpr(*$6);
-      $$->comp = NOT_IN_OP;
-      $$->right_attr.expression = query_num_list;
-      delete $1;
-      delete $6;
-    }*/
+      $$ = nullptr;
+    } 
     ;
 
 group:
@@ -1113,6 +1072,8 @@ comp_op:
     | NOT EXISTS { $$ = NOT_EXISTS_OP; }
     | IN { $$ = IN_OP; }
     | NOT IN { $$ = NOT_IN_OP; }
+    | LIKE { $$ = LIKE_OP; }
+    | NOT LIKE { $$ = NOT_LIKE_OP; }
     ;
 
 load_data_stmt:
