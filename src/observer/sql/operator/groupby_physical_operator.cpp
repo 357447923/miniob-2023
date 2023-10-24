@@ -14,6 +14,9 @@ RC GroupByPhysicalOperator::open(Trx *trx) {
   if ((rc = children_[0]->open(trx)) != RC::SUCCESS) {
     return rc;
   }
+  is_record_eof_ = false;
+  is_first_ = true;
+  is_new_group_ = true;
   tuple_.set_tuple(children_[0]->current_tuple());
   return rc;
 }

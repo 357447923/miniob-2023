@@ -18,6 +18,26 @@ See the Mulan PSL v2 for more details. */
 
 using namespace std;
 
+static bool ensure_subquery_enable(SubQueryExpr *subquery_expr, const CompOp comp_op) {
+  if (comp_op != CompOp::EXISTS_OP && comp_op != CompOp::NOT_EXISTS_OP 
+          && comp_op != CompOp::IN_OP && comp_op != CompOp::NOT_IN_OP) {
+    subquery_expr->open_sub_query();
+    Value tmp;
+    RC rc = subquery_expr->get_value(tmp);
+    if (rc != RC::SUCCESS) {
+      subquery_expr->close_sub_query();
+      return false;
+    }
+    rc = subquery_expr->get_value(tmp);
+    if (rc != RC::RECORD_EOF) {
+      subquery_expr->close_sub_query();
+      return false;
+    }
+    subquery_expr->close_sub_query();
+  }
+  return true;
+}
+
 RC TableScanPhysicalOperator::open(Trx *trx)
 {
   RC rc = table_->get_record_scanner(record_scanner_, trx, readonly_);
@@ -27,14 +47,23 @@ RC TableScanPhysicalOperator::open(Trx *trx)
   trx_ = trx;
   for (auto &expr : predicates_) {
     if (expr->type() == ExprType::COMPARISON) {
-      Expression *expression = ((ComparisonExpr *)expr.get())->right().get();
-      if (expression->type() == ExprType::SUBQUERY) {
-        ((SubQueryExpr *)expr.get())->set_trx(trx);
+      ComparisonExpr *expression = (ComparisonExpr *)expr.get();
+      std::unique_ptr<Expression> &left_sub_query = expression->left();
+      if (left_sub_query->type() == ExprType::SUBQUERY) {
+        ((SubQueryExpr *)left_sub_query.get())->set_trx(trx);
+        if (!ensure_subquery_enable((SubQueryExpr *)left_sub_query.get(), expression->comp())) {
+          return RC::INTERNAL;
+        }
         continue;
       }
-    }
-    if (expr->type() == ExprType::SUBQUERY) {
-      ((SubQueryExpr *)expr.get())->set_trx(trx);
+      std::unique_ptr<Expression> &right_sub_query = expression->right();
+      if (right_sub_query->type() == ExprType::SUBQUERY) {
+        ((SubQueryExpr *)right_sub_query.get())->set_trx(trx);
+        if (!ensure_subquery_enable((SubQueryExpr *)right_sub_query.get(), expression->comp())) {
+          return RC::INTERNAL;
+        }
+        continue;
+      }
     }
   }
   return rc;

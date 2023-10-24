@@ -758,13 +758,10 @@ rel_attr:
       }
     }
     // 子查询
-    | LBRACE SELECT select_attr FROM ID rel_condition_list where group order having RBRACE {
+    | LBRACE SELECT rel_attr FROM ID rel_condition_list where group order having RBRACE {
       $$ = new RelAttrSqlNode;
       SelectSqlNode *sub_query = new SelectSqlNode;
-      if ($3 != nullptr) {
-        sub_query->attributes.swap(*$3);
-        delete $3;
-      }
+      sub_query->attributes.push_back(*$3);
       if ($6 != nullptr) {
         sub_query->relations.swap(*$6);
         delete $6;
@@ -791,6 +788,7 @@ rel_attr:
         delete $10;
       }
       $$->sub_query = std::shared_ptr<SelectSqlNode>(sub_query);
+      delete $3;
       free($5);
     }
     ;
@@ -846,6 +844,7 @@ rel_condition_list:
       }
       $$->_rel_list.push_back($3);
       free($3);
+      std::cout << "inner join parse finished" << std::endl;
     }
     ;
 
@@ -880,6 +879,13 @@ condition_list:
       $$ = $3;
       $$->emplace_back(*$1);
       delete $1;
+    } 
+    | ON condition_list {
+      if ($2 != nullptr) {
+        $$ = $2;
+      }else {
+        $$ = new std::vector<ConditionSqlNode>;
+      }
     }
     ;
 condition:

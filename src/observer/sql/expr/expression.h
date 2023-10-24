@@ -240,7 +240,7 @@ public:
   RC compare_value(const Value &left, const Value &right, bool &value) const;
 
 private:
-  CompOp comp_;
+  const CompOp comp_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
 };
