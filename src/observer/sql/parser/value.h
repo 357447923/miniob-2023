@@ -104,6 +104,7 @@ public:
   std::string to_string() const;
 
   RC compare(const Value &other) const;
+  RC like_compare(const Value &other) const;
 
   const char *data() const;
   int length() const

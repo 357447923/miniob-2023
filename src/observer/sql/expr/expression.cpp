@@ -90,7 +90,14 @@ ComparisonExpr::~ComparisonExpr()
 RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &result) const
 {
   RC rc = RC::SUCCESS;
-  RC cmp_result = left.compare(right);
+  RC cmp_result = RC::LEFT_CAN_NOT_CMP_TO_ANOTHER;
+  if (comp_ == LIKE_OP || comp_ == NOT_LIKE_OP)
+  {
+    cmp_result = left.like_compare(right);
+  } else{
+    cmp_result = left.compare(right);
+  }
+   
   result = false;
   const bool comp_can_cmp = cmp_result != RC::LEFT_CAN_NOT_CMP_TO_ANOTHER;
 
@@ -122,6 +129,16 @@ RC ComparisonExpr::compare_value(const Value &left, const Value &right, bool &re
       AttrType left_type = left.attr_type();
       AttrType right_type = right.attr_type();
       result = (left_type == NULLS || right_type == NULLS) && (left_type != NULLS || right_type != NULLS);
+    }break;
+    case LIKE_OP : {
+      AttrType left_type = left.attr_type();
+      AttrType right_type = right.attr_type();
+      result = (left_type == CHARS || right_type == CHARS) && (cmp_result == RC::LEFT_LIKE_ANOTHER);
+    }break;
+    case NOT_LIKE_OP : {
+      AttrType left_type = left.attr_type();
+      AttrType right_type = right.attr_type();
+      result = (left_type == CHARS || right_type == CHARS) && (cmp_result == RC::LEFT_NOT_LIKE_ANOTHER);
     }break;
     default: {
       LOG_WARN("unsupported comparison. %d", comp_);

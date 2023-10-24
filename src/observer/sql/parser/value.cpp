@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "common/date.h"
 #include "common/typecast.h"
+#include <regex>
 
 const char *ATTR_TYPE_NAME[] = {
   [UNDEFINED] = "undefined", 
@@ -331,6 +332,18 @@ static inline RC rc_cmp_res(int num_cmp_res) {
   return RC::LEFT_LT_ANOTHER;
 }
 
+static void replace_all(std::string &str, const std::string &from, const std::string &to)
+{
+  if (from.empty()) {
+    return;
+  }
+  size_t pos = 0;
+  while (std::string::npos != (pos = str.find(from, pos))) {
+    str.replace(pos, from.length(), to);
+    pos += to.length();  // in case 'to' contains 'from'
+  }
+}
+
 RC Value::compare(const Value &other) const
 {
   if (this->attr_type_ == other.attr_type_) {
@@ -372,6 +385,22 @@ RC Value::compare(const Value &other) const
     return rc_cmp_res(common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_));
   }
   return rc;
+}
+
+RC Value::like_compare(const Value &other) const 
+{
+    bool res = false;
+    std::string raw_reg((const char *)other.data());
+    replace_all(raw_reg, "_", "[^']");
+    replace_all(raw_reg, "%", "[^']*");
+    std::regex reg(raw_reg.c_str(), std::regex_constants::ECMAScript | std::regex_constants::icase);
+    res = std::regex_match((const char *)data(), reg);
+    std::cout << (const char *)data() << " " << raw_reg << " " << res << std::endl;
+    if (!res)
+    {
+      return RC::LEFT_NOT_LIKE_ANOTHER;
+    }
+   return RC::LEFT_LIKE_ANOTHER;
 }
 
 int Value::get_int() const
