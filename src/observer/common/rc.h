@@ -79,7 +79,9 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(LEFT_GT_ANOTHER)                \
   DEFINE_RC(LEFT_EQ_ANOTHER)                \
   DEFINE_RC(LEFT_LT_ANOTHER)                \
-  DEFINE_RC(LEFT_CAN_NOT_CMP_TO_ANOTHER)
+  DEFINE_RC(LEFT_CAN_NOT_CMP_TO_ANOTHER)    \
+  DEFINE_RC(LEFT_LIKE_ANOTHER)              \
+  DEFINE_RC(LEFT_NOT_LIKE_ANOTHER)          \
 
 
 
