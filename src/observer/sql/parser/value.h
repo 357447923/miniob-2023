@@ -83,13 +83,13 @@ public:
     switch (obj.attr_type_)
     {
     case INTS: case DATES: {
-      return std::hash<int>{}(get_int());
+      return std::hash<int>{}(obj.get_int());
     }break;
     case FLOATS: {
-      return std::hash<float>{}(get_float());
+      return std::hash<float>{}(obj.get_float());
     }break;
     case CHARS: {
-      return std::hash<std::string>{}(get_string());
+      return std::hash<std::string>{}(obj.get_string());
     }break;
     }
     

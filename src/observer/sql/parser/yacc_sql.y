@@ -791,6 +791,16 @@ rel_attr:
       delete $3;
       free($5);
     }
+    | LBRACE value value_list RBRACE {
+      $$ = new RelAttrSqlNode;
+      if ($3 == nullptr) {
+        $3 = new std::vector<Value>;
+      }
+      $3->push_back(*$2);
+      delete $2;
+      $$->expression = new ListQueryExpr(*$3);
+      delete $3;
+    }
     ;
 
 attr_list:
@@ -821,7 +831,6 @@ rel_condition_list:
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        // $$ = new std::vector<std::string>;
         $$ = new RelationAndConditionTempList;
         $$->_rel_list = *(new std::vector<std::string>);
         $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
@@ -918,6 +927,54 @@ condition:
       delete $1;
       delete $3;
     }
+/*    | rel_attr IN LBRACE value value_list RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->right_is_attr = 1;
+      if ($1->expression == nullptr) {
+        $$->left_is_attr = 1;
+        $$->left_attr = *$1;
+      }else if ($1->expression->type() != ExprType::VALUE) {
+        $$->left_is_attr = 1;
+        $$->left_attr = *$1;
+      }else {
+        $$->left_is_attr = 0;
+        $1->expression->try_get_value($$->left_value);
+      }
+      if ($5 == nullptr) {
+        $5 = new std::vector<Value>;
+      }
+      $5->push_back(*$4);
+      delete $4;
+      Expression *query_num_list = new ListQueryExpr(*$5);
+      $$->comp = IN_OP;
+      $$->right_attr.expression = query_num_list;
+      delete $1;
+      delete $5;
+    }
+    | rel_attr NOT IN LBRACE value value_list RBRACE {
+      $$ = new ConditionSqlNode;
+      $$->right_is_attr = 1;
+      if ($1->expression == nullptr) {
+        $$->left_is_attr = 1;
+        $$->left_attr = *$1;
+      }else if ($1->expression->type() != ExprType::VALUE) {
+        $$->left_is_attr = 1;
+        $$->left_attr = *$1;
+      }else {
+        $$->left_is_attr = 0;
+        $1->expression->try_get_value($$->left_value);
+      }
+      if ($6 == nullptr) {
+        $6 = new std::vector<Value>;
+      }
+      $6->push_back(*$5);
+      delete $5;
+      Expression *query_num_list = new ListQueryExpr(*$6);
+      $$->comp = NOT_IN_OP;
+      $$->right_attr.expression = query_num_list;
+      delete $1;
+      delete $6;
+    }*/
     ;
 
 group:

@@ -220,7 +220,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     }else {
       assert(ExprType::SUBLIST == right_->type());
       auto list_expr = (const ListQueryExpr *)right_.get();
-      value.set_boolean(list_expr->contains(left_value));
+      value.set_boolean(comp_ == CompOp::IN_OP? list_expr->contains(left_value): !list_expr->contains(left_value));
       return RC::SUCCESS;
     }
     

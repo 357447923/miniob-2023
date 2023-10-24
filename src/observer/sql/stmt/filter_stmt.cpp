@@ -117,6 +117,10 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
             ArithmeticExpr::find_field_need(default_table, expr);
           }
         }break;
+        
+        case ExprType::SUBLIST: {
+          
+        }break;
 
         default: {
           LOG_ERROR("Unimplement this expression type:%d .", attr.expression->type());
