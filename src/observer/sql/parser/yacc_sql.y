@@ -155,6 +155,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   std::vector<std::string> *        relation_list;
   std::vector<RelAttrSqlNode> *     func_attr_list;
   RelationAndConditionTempList*     relationAndConditionTempList;
+  std::vector<std::string> *        index_attr_list;
   char *                            string;
   int                               number;
   float                             floats;
@@ -189,13 +190,14 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <rel_attr_list>       group_list
 %type <rel_attr>            group_item
 %type <rel_attr_list>       select_attr
-
+%type <relation_list>       rel_list
 
 
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
 %type <relationAndConditionTempList>       rel_condition_list
+%type <index_attr_list>     idx_attr_list
 %type <sql_node>            calc_stmt
 %type <sql_node>            select_stmt
 %type <sql_node>            insert_stmt
@@ -312,16 +314,38 @@ desc_table_stmt:
     ;
 
 create_index_stmt:    /*create index 语句的语法解析树*/
-    CREATE INDEX ID ON ID LBRACE ID RBRACE
+    CREATE INDEX ID ON ID LBRACE ID idx_attr_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
       create_index.index_name = $3;
       create_index.relation_name = $5;
-      create_index.attribute_name = $7;
+      if ($8 != nullptr) {
+        create_index.attribute_names.swap(*$8);
+        delete $8;
+      }
+      create_index.attribute_names.push_back($7);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+      create_index.index_type = "NOMAL_INDEX";
       free($3);
       free($5);
       free($7);
+    }
+    ;
+
+idx_attr_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA ID rel_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<std::string>;
+      }
+      $$->push_back($2);
+      free($2);
     }
     ;
 
@@ -870,6 +894,22 @@ attr_list:
     }
     ;
 
+rel_list:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | COMMA ID rel_list {
+      if ($3 != nullptr) {
+        $$ = $3;
+      } else {
+        $$ = new std::vector<std::string>;
+      }
+
+      $$->push_back($2);
+      free($2);
+    }
+    ;
 
 rel_condition_list:
     /* empty */
