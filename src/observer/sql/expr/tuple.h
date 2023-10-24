@@ -393,7 +393,7 @@ public:
   RC find_cell(const TupleCellSpec &spec, Value &cell) const override
   {
     for (const std::unique_ptr<Expression> &expr : expressions_) {
-      if (0 == strcmp(spec.alias(), expr->name().c_str())) {
+      if (0 == strcmp(spec.alias()->c_str(), expr->name().c_str())) {
         return expr->try_get_value(cell);
       }
     }

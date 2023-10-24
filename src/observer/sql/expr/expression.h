@@ -397,6 +397,51 @@ private:
   ValueExpr *value_ = nullptr;    // such as count(1), count("xxx"), etc.
 };
 
+class FuncExpr : public Expression {
+public:
+  FuncExpr() = default;
+  FuncExpr(FuncType func_type, int param_size, Expression *param1, Expression *param2);
+  virtual ~FuncExpr() = default;
+
+  RC get_value(const Tuple &tuple, Value &value) const override;
+
+  ExprType type() const override {
+    return ExprType::FUNC;
+  }
+
+  AttrType value_type() const override {
+    return AttrType::UNDEFINED;
+  }
+
+  FuncType func_type() {
+    return func_type_;
+  }
+
+  std::vector<Expression *> get_params() {
+    return params_expr_;
+  }
+
+  int get_param_size() {
+    return param_size_;
+  }
+
+  static void find_field_need(const Table *table, FuncExpr *func_expr);
+
+  static void find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr);
+
+private:
+  RC get_func_length_value(const Tuple &tuple, Value &value) const;
+
+  RC get_func_round_value(const Tuple &tuple, Value &value) const;
+
+  RC get_func_data_format_value(const Tuple &tuple, Value &value) const;
+
+private:
+  FuncType func_type_;
+  std::vector<Expression *> params_expr_;
+  int param_size_;
+};
+
 class SubQueryExpr : public Expression {
 public:
   SubQueryExpr() = default;

@@ -123,6 +123,9 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         AVG
         COUNT
         SUM
+        LENGTH
+        ROUND
+        DATE_FORMAT
         EXISTS
         IN
         EQ
@@ -141,6 +144,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   OrderSqlNode *                    order_condition;
   Value *                           value;
   enum CompOp                       comp;
+  enum FuncType                     func;
   enum AggFuncType                  agg_func;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
@@ -174,6 +178,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <func>                func
 %type <agg_func>            agg_func
 %type <rel_attr>            rel_attr
 %type <string>              alias
@@ -608,6 +613,8 @@ update_stmt:      /*  update 语句的语法解析树*/
       free($4);
     }
     ;
+
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM ID alias rel_condition_list where group order having
     {
@@ -733,6 +740,12 @@ expression:
       ValueExpr *expr = new ValueExpr(Value($3));
       expr->set_name(std::to_string($3));
       $$ = new AggrFuncExpr($1, expr);
+    }
+    | func LBRACE expression RBRACE {
+      $$ = new FuncExpr($1, 1, $3, nullptr);
+    }
+    | func LBRACE expression COMMA expression RBRACE {
+      $$ = new FuncExpr($1, 2, $3, $5);
     }
     ;
 
@@ -864,6 +877,8 @@ rel_attr:
       delete $3;
     }
     ;
+
+
 
 attr_list:
     /* empty */
@@ -1017,6 +1032,7 @@ condition:
       delete $1;
       delete $3;
     }
+    
     ;
 
 group:
@@ -1141,6 +1157,11 @@ agg_func:
     | COUNT { $$ = FUNC_COUNT; }
     | AVG { $$ = FUNC_AVG; }
     | SUM { $$ = FUNC_SUM; }
+
+func:
+      LENGTH { $$ = FUNC_LENGTH; }
+    | ROUND { $$ = FUNC_ROUND; }
+    | DATE_FORMAT { $$ = FUNC_DATE_FORMAT; }
 
 comp_op:
       EQ { $$ = EQUAL_TO; }

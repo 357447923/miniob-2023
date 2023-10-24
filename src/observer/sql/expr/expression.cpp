@@ -12,6 +12,8 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/07/05.
 //
 
+#include <cmath>
+#include <iomanip>
 #include "sql/expr/expression.h"
 #include "sql/expr/tuple.h"
 #include "sql/parser/parse_defs.h"
@@ -766,4 +768,223 @@ ListQueryExpr::ListQueryExpr(std::unordered_set<Value, Value> &value_list) {
     assert(value.attr_type() == type);
   }
   value_list_.swap(value_list);
+}
+
+FuncExpr::FuncExpr(FuncType func_type, int param_size, Expression *param1, Expression *param2) {
+  func_type_ = func_type;
+  param_size_ = param_size;
+  if (param1 != nullptr) {
+    params_expr_.emplace_back(param1);
+  }
+  if (param2 != nullptr) {
+    params_expr_.emplace_back(param2);
+  }
+}
+
+RC FuncExpr::get_value(const Tuple &tuple, Value &value) const {
+  RC rc = RC::SUCCESS;
+  switch (func_type_)
+  {
+  case FUNC_LENGTH: {
+    rc = get_func_length_value(tuple, value);
+  }break;
+  case FUNC_ROUND: {
+    rc = get_func_round_value(tuple, value);
+  }break;
+  case FUNC_DATE_FORMAT: {
+    rc = get_func_data_format_value(tuple, value);
+  }break;
+  default: {
+    LOG_ERROR("this FuncExpr is error, because of func_type: %d", func_type_);
+    rc = RC::INTERNAL;
+  }break;
+  }
+  return rc;
+}
+
+RC FuncExpr::get_func_length_value(const Tuple &tuple, Value &value) const {
+  Expression *param_expr = *params_expr_.begin();
+  Value param_value;
+  param_expr->get_value(tuple, param_value);
+  // unsupported not chars
+  if (param_value.attr_type() != CHARS) {
+    return RC::INTERNAL;
+  }
+  int result_length = param_value.get_string().length();
+  value.set_int(result_length);
+  return RC::SUCCESS;
+}
+
+RC FuncExpr::get_func_round_value(const Tuple &tuple, Value &value) const {
+  if (param_size_ > 1) {
+    Expression *param_expr = params_expr_[0];
+    Expression *param_expr_precision = params_expr_[1];
+    Value param_expr_value;
+    Value param_expr_precision_value;
+    param_expr->get_value(tuple, param_expr_value);
+    param_expr_precision->get_value(tuple, param_expr_precision_value);
+    if (param_expr_value.attr_type() != FLOATS 
+            || param_expr_precision_value.attr_type() != INTS) {
+      return RC::INTERNAL;
+    }
+    float value_float = param_expr_value.get_float();
+    int value_precision = param_expr_precision_value.get_int();
+    auto inner_round = [](float f, int precision) {
+      std::stringstream ss;
+      ss << std::fixed << std::setprecision(precision) << f;
+      ss >> f;
+      return f;
+    };
+    value_float = inner_round(value_float, value_precision);
+    value.set_float(value_float);
+  }else {
+    Expression *param_expr = params_expr_[0];
+    Value param_expr_value;
+    param_expr->get_value(tuple, param_expr_value);
+    if (param_expr_value.attr_type() != FLOATS) {
+      return RC::INTERNAL;
+    }
+    float value_float = param_expr_value.get_float();
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(0) << value_float;
+    ss >> value_float;
+    value.set_float(value_float);
+  }
+  return RC::SUCCESS;
+}
+
+RC FuncExpr::get_func_data_format_value(const Tuple &tuple, Value &value) const {
+  const static char *month_str[] = {"", "January", "February", "March", 
+      "April", "May", "June", "July", "August", "September",
+      "October", "November", "December"};
+  Expression *date_expr = params_expr_[0];
+  Expression *format_expr = params_expr_[1];
+  Value date_expr_value;
+  Value format_expr_value;
+  date_expr->get_value(tuple, date_expr_value);
+  format_expr->get_value(tuple, format_expr_value);
+  if (date_expr_value.attr_type() != DATES
+      || format_expr_value.attr_type() != CHARS) {
+    return RC::INTERNAL;
+  }
+  int32_t value_date = date_expr_value.get_date();
+  string value_format_str = format_expr_value.get_string();
+  string result_date_str;
+  int year = value_date / 10000;
+  int month = (value_date / 100) % 100;
+  int day = value_date % 100;
+  for (size_t i = 0; i < value_format_str.length(); ++i) {
+    if ('A' <= value_format_str[i] && value_format_str[i] <= 'z') {
+      switch (value_format_str[i]) {
+        case 'Y': {
+          char tmp[5];
+          sprintf(tmp, "%d", year);
+          result_date_str += tmp;
+          break;
+        }
+        case 'y': {
+          char tmp[5];
+          sprintf(tmp, "%d", year % 100);
+          if (0 <= (year % 100) && (year % 100) <= 9) {
+            result_date_str += "0";
+          }
+          result_date_str += tmp;
+          break;
+        }
+        case 'M': {
+          if (month <= 0 || month >= 13) {
+            return RC::INTERNAL;
+          }
+          result_date_str += month_str[month];
+          break;
+        }
+        case 'm': {
+          char tmp[3];
+          sprintf(tmp, "%d", month);
+          if (0 <= month && month <= 9) {
+            result_date_str += "0";
+          }
+          result_date_str += tmp;
+          break;
+        }
+        case 'D': {
+          char tmp[3];
+          sprintf(tmp, "%d", day);
+          if (10 <= day && day <= 20) {
+            result_date_str += tmp;
+            result_date_str += "th";
+          }else {
+            switch (day % 10) {
+              case 1: {
+                result_date_str += tmp;
+                result_date_str += "nd";
+                break;
+              }
+              case 2: {
+                result_date_str += tmp;
+                result_date_str += "nd";
+                break;
+              }
+              case 3: {
+                result_date_str += tmp;
+                result_date_str += "rd";
+                break;
+              }
+              default: {
+                result_date_str += tmp;
+                result_date_str + "th";
+                break;
+              }
+            }
+          }
+          break;
+        }
+        case 'd': {
+          char tmp[3];
+          sprintf(tmp, "%d", day);
+          if (0 <= day && day <= 9) {
+            result_date_str += "0";
+          }
+          result_date_str += tmp;
+          break;
+        }
+        default: {
+          result_date_str += value_format_str[i];
+          break;
+        }
+      }
+    }else if (value_format_str[i] != '%') {
+      result_date_str += value_format_str[i];
+    }
+  }
+  value.set_string(strdup(result_date_str.c_str()), result_date_str.length());
+  return RC::SUCCESS;
+}
+
+void FuncExpr::find_field_need(const Table *table, FuncExpr *func_expr) {
+  const std::vector<Expression *> &params = func_expr->get_params();
+  for (auto param : params) {
+    if (param->type() == ExprType::FIELD) {
+      FieldExpr *field_param = (FieldExpr *)param;
+      const FieldMeta *field_meta = table->table_meta().field(field_param->name().c_str());
+      Field &field = field_param->field();
+      field.set_field(field_meta);
+      field.set_table(table);
+    }else if (param->type() == ExprType::SUBQUERY) {
+      LOG_ERROR("unimplement function when func's param type is subquery");
+    }
+  }
+}
+
+void FuncExpr::find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr) {
+  const std::vector<Expression *> &params = func_expr->get_params();
+  for (auto param : params) {
+    if (param->type() == ExprType::FIELD) {
+      if (!create_field_by_expr((FieldExpr *)param, table_map)) {
+        LOG_ERROR("create field expr error in FuncExpr::find_field_need");
+      }
+    }else if (param->type() == ExprType::SUBQUERY) {
+      LOG_ERROR("unimplement function when func's param type is subquery");
+    }
+  }
 }

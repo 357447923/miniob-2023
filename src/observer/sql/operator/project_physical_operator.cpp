@@ -82,6 +82,12 @@ void ProjectPhysicalOperator::add_projection(const std::vector<Expression *> &ex
         spec->set_expr(arith_expr);
         tuple_.add_cell_spec(spec, FUNC_NONE);
       }break;
+      case ExprType::FUNC: {
+        FuncExpr *func_expr = static_cast<FuncExpr *>(expr);
+        TupleCellSpec *spec = new TupleCellSpec(func_expr->func_type());
+        spec->set_expr(func_expr);
+        tuple_.add_cell_spec(spec, FUNC_NONE);
+      }break;
       default: {
         LOG_WARN("Expression type_id => %d, couldn't parse in ProjectPhysicalOperator.", expr->type());
       }break;

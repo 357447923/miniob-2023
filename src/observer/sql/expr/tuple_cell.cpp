@@ -28,7 +28,7 @@ TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, con
     field_name_ = field_name;
   }
   if (alias) {
-    alias_ = alias;
+    alias_.reset(new std::string(alias));
   }
   aggfunc_type_ = type;
 }
@@ -36,14 +36,14 @@ TupleCellSpec::TupleCellSpec(const char *table_name, const char *field_name, con
 TupleCellSpec::TupleCellSpec(const char *alias, AggFuncType type)
 {
   if (alias) {
-    alias_ = alias;
+    alias_.reset(new std::string(alias));
   }
   aggfunc_type_ = type;
 }
 
 TupleCellSpec::TupleCellSpec(const char *field_name, const char *alias, AggFuncType type) {
   if (alias) {
-    alias_ = alias;
+    alias_.reset(new std::string(alias));
   }
   if (field_name) {
     field_name_ = field_name;

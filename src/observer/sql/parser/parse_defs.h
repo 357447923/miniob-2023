@@ -66,6 +66,13 @@ enum CompOp
   NO_OP
 };
 
+enum FuncType {
+  FUNC_LENGTH,
+  FUNC_ROUND,
+  FUNC_DATE_FORMAT,
+  NO_FUNC
+};
+
 struct SelectSqlNode;
 /**
  * @brief 描述一个属性
@@ -77,6 +84,7 @@ struct SelectSqlNode;
 struct RelAttrSqlNode
 {
   AggFuncType type = AggFuncType::FUNC_NONE;            ///< 聚合函数类型，默认非使用聚合函数列
+  FuncType func_type = FuncType::NO_FUNC;             ///< 函数类型
   Expression *expression = nullptr;      ///< 算数表达式, 函数表达式
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名

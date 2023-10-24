@@ -119,7 +119,16 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
         }break;
         
         case ExprType::SUBLIST: {
-          
+          // 无需处理
+        }break;
+
+        case ExprType::FUNC: {
+          FuncExpr *func_expr = static_cast<FuncExpr *>(attr.expression);
+          if (default_table == nullptr) {
+            FuncExpr::find_field_need(*tables, func_expr);
+          }else {
+            FuncExpr::find_field_need(default_table, func_expr);
+          }
         }break;
 
         default: {
