@@ -862,6 +862,7 @@ condition:
         $3->expression->try_get_value($$->right_value);
       }
       $$->comp = $2;
+      std::cout << "comp type: " << $$->comp << std::endl;
       delete $1;
       delete $3;
     }
