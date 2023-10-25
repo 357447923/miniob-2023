@@ -53,15 +53,20 @@ enum CompOp
   LESS_EQUAL,   ///< "<="
   IS_NULL,
   NOT_NULL,     ///< 对于NULL类型的运算，我暂且放这里
+  EXISTS_OP,
+  NOT_EXISTS_OP,
+  IN_OP,
+  NOT_IN_OP,
   NOT_EQUAL,    ///< "<>"
   LESS_THAN,    ///< "<"
   GREAT_EQUAL,  ///< ">="
   GREAT_THAN,   ///< ">"
-  NO_OP,
-  LIKE_OP,      //< "like" 
-  NOT_LIKE_OP,  //< "not like"
+  LIKE_OP,
+  NOT_LIKE_OP,
+  NO_OP
 };
 
+struct SelectSqlNode;
 /**
  * @brief 描述一个属性
  * @ingroup SQLParser
@@ -75,6 +80,7 @@ struct RelAttrSqlNode
   Expression *expression = nullptr;      ///< 算数表达式, 函数表达式
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
+  std::shared_ptr<SelectSqlNode> sub_query;    ///< 子查询属性, 当没有子查询时为nullptr
 };
 
 /**

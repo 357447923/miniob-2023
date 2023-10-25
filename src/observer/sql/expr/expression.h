@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <string.h>
 #include <memory>
 #include <string>
+#include <unordered_set>
 
 #include "storage/field/field.h"
 #include "sql/parser/value.h"
@@ -24,6 +25,10 @@ See the Mulan PSL v2 for more details. */
 #include "sql/parser/parse_defs.h"
 
 class Tuple;
+class SelectStmt;
+class LogicalOperator;
+class ProjectLogicalOperator;
+class ProjectPhysicalOperator;
 
 /**
  * @defgroup Expression
@@ -50,6 +55,7 @@ enum class ExprType
   AGGRFUNCTION, ///< 聚合函数
   FUNC,         ///< 函数(非聚合)
   SUBQUERY,     ///< 子查询
+  SUBLIST,      ///< 用于例如 IN (1,2,3) 子句
 };
 
 /**
@@ -234,7 +240,7 @@ public:
   RC compare_value(const Value &left, const Value &right, bool &value) const;
 
 private:
-  CompOp comp_;
+  const CompOp comp_;
   std::unique_ptr<Expression> left_;
   std::unique_ptr<Expression> right_;
 };
@@ -378,4 +384,97 @@ private:
   AggFuncType type_ = AggFuncType::FUNC_NONE;
   FieldExpr *field_ = nullptr;    // such as count(id), max(id), etc.
   ValueExpr *value_ = nullptr;    // such as count(1), count("xxx"), etc.
+};
+
+class SubQueryExpr : public Expression {
+public:
+  SubQueryExpr() = default;
+
+  ~SubQueryExpr();
+
+  RC get_value(const Tuple &tuple, Value &value) const override;
+  RC get_value(Value &value) const;
+
+  ExprType type() const override {
+    return ExprType::SUBQUERY;
+  }
+
+  void set_stmt(SelectStmt *stmt) {
+    select_stmt_ = stmt;
+  }
+
+  SelectStmt *select_stmt() {
+    return select_stmt_;
+  }
+
+  void set_sub_query_logical(ProjectLogicalOperator *select_logical) {
+    sub_query_logical_ = select_logical;
+  }
+
+  ProjectLogicalOperator *sub_query_logical() {
+    return sub_query_logical_;
+  }
+
+  void set_sub_query_operator(ProjectPhysicalOperator *sub_query_operator) {
+    sub_query_operator_ = sub_query_operator;
+  }
+
+  const ProjectPhysicalOperator *sub_query_operator() const {
+    return sub_query_operator_;
+  }
+
+  void set_trx(Trx *trx) {
+    trx_ = trx;
+  }
+
+  RC open_sub_query() const;
+  RC close_sub_query() const;
+
+  AttrType value_type() const override {
+    LOG_ERROR("SubQueryExpr.value_type() waitting for implenment");
+    return AttrType::UNDEFINED;
+  };
+
+private:
+  Trx *trx_ = nullptr;
+  SelectStmt *select_stmt_ = nullptr;       // 子查询的select语句, 不属于表达式管理
+  ProjectLogicalOperator *sub_query_logical_ = nullptr; // 子查询逻辑算子
+  ProjectPhysicalOperator *sub_query_operator_ = nullptr;   // 子查询的物理算子, 属于表达式管理(待定)
+};
+
+/**
+ * IN (1, 2, 3) 表达式 
+ */
+class ListQueryExpr : public Expression {
+public:
+  ListQueryExpr(const Value *, int size);
+
+  ListQueryExpr(const std::vector<Value> &values);
+  /**
+   * 把入参的数据交换到ListQueryExpr对象中
+   */
+  ListQueryExpr(std::unordered_set<Value, Value> &value_list);
+
+  RC get_value(const Tuple &tuple, Value &value) const override {
+    return RC::UNIMPLENMENT;
+  }
+
+  ExprType type() const override {
+    return ExprType::SUBLIST;
+  }
+
+  bool contains(const Value &value) const {
+    return value_list_.contains(value);
+  }
+
+  const std::unordered_set<Value, Value> &value_list() const {
+    return value_list_;
+  }
+
+  AttrType value_type() const override {
+    return value_list_.empty()? AttrType::UNDEFINED: (value_list_.begin())->attr_type();
+  };
+
+private:
+  std::unordered_set<Value, Value> value_list_;    // 用于存放数据(IN 的数据)
 };

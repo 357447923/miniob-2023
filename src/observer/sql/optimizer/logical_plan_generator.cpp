@@ -280,21 +280,46 @@ RC LogicalPlanGenerator::create_plan(
 }
 
 RC LogicalPlanGenerator::create_plan(
-    FilterStmt* filter_stmt,
-    unique_ptr<LogicalOperator>& logical_operator) {
-    std::vector<unique_ptr<Expression>> cmp_exprs;
-    const std::vector<FilterUnit*>& filter_units = filter_stmt->filter_units();
-    for (const FilterUnit* filter_unit : filter_units) {
-        const FilterObj& filter_obj_left = filter_unit->left();
-        const FilterObj& filter_obj_right = filter_unit->right();
+    FilterStmt *filter_stmt, unique_ptr<LogicalOperator> &logical_operator)
+{
+  std::vector<unique_ptr<Expression>> cmp_exprs;
+  const std::vector<FilterUnit *> &filter_units = filter_stmt->filter_units();
 
-        unique_ptr<Expression> left(filter_obj_left.is_attr
-                                        ? static_cast<Expression*>(filter_obj_left.expression)
-                                        : static_cast<Expression*>(new ValueExpr(filter_obj_left.value)));
+  auto handle_subquery = [&](const FilterObj &filter_obj) -> RC {
+    if (filter_obj.is_attr && filter_obj.expression->type() == ExprType::SUBQUERY) {
+      SubQueryExpr *expr = static_cast<SubQueryExpr *>(filter_obj.expression);
+      std::unique_ptr<LogicalOperator> sub_query;
+      RC rc = create_plan(expr->select_stmt(), sub_query);
+      if (rc != RC::SUCCESS) {
+        return rc;
+      }
+      expr->set_sub_query_logical(static_cast<ProjectLogicalOperator *>(sub_query.get()));
+      // 释放智能指针对申请的内存的管理
+      sub_query.release();
+      return rc;
+    }
+    return RC::SUCCESS;
+  };
 
-        unique_ptr<Expression> right(filter_obj_right.is_attr
-                                         ? static_cast<Expression*>(filter_obj_right.expression)
-                                         : static_cast<Expression*>(new ValueExpr(filter_obj_right.value)));
+  for (const FilterUnit *filter_unit : filter_units) {
+    const FilterObj &filter_obj_left = filter_unit->left();
+    const FilterObj &filter_obj_right = filter_unit->right();
+
+    unique_ptr<Expression> left(filter_obj_left.is_attr
+                                         ? static_cast<Expression *>(filter_obj_left.expression)
+                                         : static_cast<Expression *>(new ValueExpr(filter_obj_left.value)));
+    RC rc = handle_subquery(filter_obj_left);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+
+    unique_ptr<Expression> right(filter_obj_right.is_attr
+                                          ? static_cast<Expression *>(filter_obj_right.expression)
+                                          : static_cast<Expression *>(new ValueExpr(filter_obj_right.value)));
+    handle_subquery(filter_obj_right);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
 
         ComparisonExpr* cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
         cmp_exprs.emplace_back(cmp_expr);

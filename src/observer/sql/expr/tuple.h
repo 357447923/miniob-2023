@@ -573,10 +573,11 @@ public:
           cell = aggr_results_[i];
           return RC::SUCCESS;
         }
+
         if ((expr->field() != nullptr && strcmp(expr->field()->field_name(), spec.field_name()) == 0) || 
             (expr->value() != nullptr && strcmp(expr->value()->get_value().get_string().c_str(), spec.field_name()) == 0)) {
-          cell = aggr_results_[i];
-          return RC::SUCCESS;
+              cell = aggr_results_[i];
+              return RC::SUCCESS;
         }
       }
       LOG_WARN("Couldn't find %s", spec.to_string().c_str());
@@ -602,6 +603,24 @@ public:
     return RC::NOTFOUND;
   }
 
+  void do_aggregate_when_first_eof() {
+    assert(field_exprs_.size() < 1 && aggr_func_exprs_.size() > 0);
+    for (int i = 0; i < counts_.size(); ++i) {
+      counts_[i] = 0;
+      all_null_[i] = true;
+    }
+    for (int i = 0; i < aggr_results_.size(); ++i) {
+      switch(aggr_func_exprs_[i]->aggr_type()) {
+        case AggFuncType::FUNC_COUNT: {
+          aggr_results_[i].set_int(0);
+        }break;
+        
+        default: {
+          aggr_results_[i].set_null();
+        }break;
+      }
+    }
+  }
   /**
    * 当某个分组第一次聚合时，则调用该函数
    */
@@ -614,6 +633,14 @@ public:
    * 数据读取完毕后，对所有分组调用该方法
    */
   void do_aggregate_done();
+
+  const std::vector<FieldExpr *>& field_exprs() const {
+    return field_exprs_;
+  }
+
+  const std::vector<AggrFuncExpr *>& aggr_func_exprs() const {
+    return aggr_func_exprs_;
+  }
 
 private:
   std::vector<bool> all_null_;        ///< 用于记录某个分组中的某一列记录是否全部为null

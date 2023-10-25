@@ -98,6 +98,7 @@ static inline void modify_2_negative(Value *value) {
         VALUES
         FROM
         WHERE
+        HAVING
         AND
         SET
         INNER
@@ -117,6 +118,8 @@ static inline void modify_2_negative(Value *value) {
         AVG
         COUNT
         SUM
+        EXISTS
+        IN
         EQ
         LT
         GT
@@ -171,6 +174,7 @@ static inline void modify_2_negative(Value *value) {
 %type <value_list>          value_list
 %type <value_lists>         value_lists
 %type <condition_list>      where
+%type <condition_list>      having
 %type <condition_list>      condition_list
 %type <order_condition_list> order
 %type <order_condition_list> order_condition_list
@@ -574,7 +578,7 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_condition_list where group order
+    SELECT select_attr FROM ID rel_condition_list where group order having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
@@ -602,6 +606,11 @@ select_stmt:        /*  select 语句的语法解析树*/
         std::reverse($8->begin(), $8->end());
         $$->selection.orders.swap(*$8);
         delete $8;
+      }
+      if ($9 != nullptr) {
+        std::reverse($9->begin(), $9->end());
+        $$->selection.havings.swap(*$9);
+        delete $9;
       }
       free($4);
     }
@@ -748,6 +757,51 @@ rel_attr:
         $$->expression = $1;
       }
     }
+    // 子查询
+    | LBRACE SELECT rel_attr FROM ID rel_condition_list where group order having RBRACE {
+      $$ = new RelAttrSqlNode;
+      SelectSqlNode *sub_query = new SelectSqlNode;
+      sub_query->attributes.push_back(*$3);
+      if ($6 != nullptr) {
+        sub_query->relations.swap($6->_rel_list);
+        delete $6;
+      }
+      sub_query->relations.push_back($5);
+      std::reverse(sub_query->relations.begin(), sub_query->relations.end());
+      if ($7 != nullptr) {
+        sub_query->conditions.swap(*$7);
+        delete $7;
+      }
+      if ($8 != nullptr) {
+        std::reverse($8->begin(), $8->end());
+        sub_query->groups.swap(*$8);
+        delete $8;
+      }
+      if ($9 != nullptr) {
+        std::reverse($9->begin(), $9->end());
+        sub_query->orders.swap(*$9);
+        delete $9;
+      }
+      if ($10 != nullptr) {
+        std::reverse($10->begin(), $10->end());
+        sub_query->havings.swap(*$10);
+        delete $10;
+      }
+      $$->sub_query = std::shared_ptr<SelectSqlNode>(sub_query);
+      delete $3;
+      free($5);
+    }
+    // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
+    | LBRACE value value_list RBRACE %prec UMINUS {
+      $$ = new RelAttrSqlNode;
+      if ($3 == nullptr) {
+        $3 = new std::vector<Value>;
+      }
+      $3->push_back(*$2);
+      delete $2;
+      $$->expression = new ListQueryExpr(*$3);
+      delete $3;
+    }
     ;
 
 attr_list:
@@ -778,7 +832,6 @@ rel_condition_list:
       if ($3 != nullptr) {
         $$ = $3;
       } else {
-        // $$ = new std::vector<std::string>;
         $$ = new RelationAndConditionTempList;
         $$->_rel_list = *(new std::vector<std::string>);
         $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
@@ -801,6 +854,7 @@ rel_condition_list:
       }
       $$->_rel_list.push_back($3);
       free($3);
+      std::cout << "inner join parse finished" << std::endl;
     }
     ;
 
@@ -811,6 +865,14 @@ where:
     }
     | WHERE condition_list {
       $$ = $2;  
+    }
+    ;
+having:
+    {
+      $$ = nullptr;
+    }
+    | HAVING condition_list {
+      $$ = $2;
     }
     ;
 condition_list:
@@ -827,7 +889,7 @@ condition_list:
       $$ = $3;
       $$->emplace_back(*$1);
       delete $1;
-    }
+    } 
     | ON condition_list {
       if ($2 != nullptr) {
         $$ = $2;
@@ -866,6 +928,12 @@ condition:
       delete $1;
       delete $3;
     }
+    | rel_attr IN LBRACE value value_list RBRACE {
+      $$ = nullptr;
+    }
+    | rel_attr NOT IN LBRACE value value_list RBRACE {
+      $$ = nullptr;
+    } 
     ;
 
 group:
@@ -940,15 +1008,7 @@ order_condition_list:
     delete $2;
   }
   ;
-/*order_condition:
-  group_item ASC {
-    $$ = new OrderSqlNode;
-    $$->attribute = std::move(*$1);
-  }
-  | group_item DESC {
 
-  }
-  ;*/
 order_condition:
   ID {
     $$ = new OrderSqlNode;
@@ -1008,6 +1068,10 @@ comp_op:
     | NE { $$ = NOT_EQUAL; }
     | IS { $$ = IS_NULL; }
     | IS NOT { $$ = NOT_NULL; }
+    | EXISTS { $$ = EXISTS_OP; }
+    | NOT EXISTS { $$ = NOT_EXISTS_OP; }
+    | IN { $$ = IN_OP; }
+    | NOT IN { $$ = NOT_IN_OP; }
     | LIKE { $$ = LIKE_OP; }
     | NOT LIKE { $$ = NOT_LIKE_OP; }
     ;

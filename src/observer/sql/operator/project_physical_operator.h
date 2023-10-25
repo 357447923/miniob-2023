@@ -59,8 +59,6 @@ public:
 
   Tuple *current_tuple() override;
 
-
-
 private:
   // 返回值
   ProjectTuple tuple_;
