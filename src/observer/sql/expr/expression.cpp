@@ -961,30 +961,38 @@ RC FuncExpr::get_func_data_format_value(const Tuple &tuple, Value &value) const 
   return RC::SUCCESS;
 }
 
-void FuncExpr::find_field_need(const Table *table, FuncExpr *func_expr) {
+RC FuncExpr::find_field_need(const Table *table, FuncExpr *func_expr) {
   const std::vector<Expression *> &params = func_expr->get_params();
   for (auto param : params) {
     if (param->type() == ExprType::FIELD) {
       FieldExpr *field_param = (FieldExpr *)param;
       const FieldMeta *field_meta = table->table_meta().field(field_param->name().c_str());
+      if (!field_meta) {
+        return RC::SCHEMA_FIELD_NOT_EXIST;
+      }
       Field &field = field_param->field();
       field.set_field(field_meta);
       field.set_table(table);
     }else if (param->type() == ExprType::SUBQUERY) {
       LOG_ERROR("unimplement function when func's param type is subquery");
+      return RC::UNIMPLENMENT;
     }
   }
+  return RC::SUCCESS;
 }
 
-void FuncExpr::find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr) {
+RC FuncExpr::find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr) {
   const std::vector<Expression *> &params = func_expr->get_params();
   for (auto param : params) {
     if (param->type() == ExprType::FIELD) {
       if (!create_field_by_expr((FieldExpr *)param, table_map)) {
         LOG_ERROR("create field expr error in FuncExpr::find_field_need");
+        return RC::INTERNAL;
       }
     }else if (param->type() == ExprType::SUBQUERY) {
       LOG_ERROR("unimplement function when func's param type is subquery");
+      return RC::UNIMPLENMENT;
     }
   }
+  return RC::SUCCESS;
 }

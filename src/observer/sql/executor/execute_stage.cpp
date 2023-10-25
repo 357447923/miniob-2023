@@ -113,6 +113,10 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
             const char *alias = expressions[i]->alias();
             schema.append_cell(alias? alias: expressions[i]->name().c_str());
           }break;
+          case ExprType::FUNC: {
+            FuncExpr *func_expr = static_cast<FuncExpr *>(expressions[i]);
+            schema.append_cell(TupleCellSpec(func_expr->func_type(), func_expr, func_expr->name().c_str()));
+          }break;
           default: {
             LOG_WARN("Execute_stage couldn't handle expr_type => %d", expressions[i]->type());
           }break;

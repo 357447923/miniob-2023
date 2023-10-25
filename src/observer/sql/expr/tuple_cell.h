@@ -26,8 +26,14 @@ public:
   TupleCellSpec(const char *alias, AggFuncType type = AggFuncType::FUNC_NONE);
   TupleCellSpec(const char *field_name, const char *alias, AggFuncType type = AggFuncType::FUNC_NONE);
   TupleCellSpec(FuncType func_type) {
-    aggfunc_type_ = FUNC_NONE;
     func_type_ = func_type;
+  }
+  TupleCellSpec(FuncType func_type, Expression *expr, const char *alias = nullptr) {
+    func_type_ = func_type;
+    expression_ = expr;
+    if (alias) {
+      alias_ = alias;
+    }
   }
 
   const char *table_name() const
@@ -38,9 +44,9 @@ public:
   {
     return field_name_.c_str();
   }
-  std::shared_ptr<std::string> alias() const
+  const char *alias() const
   {
-    return alias_;
+    return alias_.c_str();
   }
   const AggFuncType aggfunc_type() const {
     return aggfunc_type_;
@@ -49,8 +55,8 @@ public:
    * 统一tuple_cell类的输出
    */
   const std::string to_string() const {
-    if (alias_) {
-      return *alias_;
+    if (!common::is_blank(alias_.c_str())) {
+      return alias_;
     }
     std::string str;
     if (aggfunc_type_ != FUNC_NONE) {
@@ -75,10 +81,10 @@ public:
   }
 
 private:
-  AggFuncType aggfunc_type_;
-  FuncType func_type_;
+  AggFuncType aggfunc_type_ = FUNC_NONE;
+  FuncType func_type_ = NO_FUNC;
   std::string table_name_;
   std::string field_name_;
   Expression *expression_ = nullptr;
-  std::shared_ptr<std::string> alias_ = nullptr;
+  std::string alias_;
 };

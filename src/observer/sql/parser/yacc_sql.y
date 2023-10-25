@@ -743,9 +743,41 @@ expression:
     }
     | func LBRACE expression RBRACE {
       $$ = new FuncExpr($1, 1, $3, nullptr);
+      std::string name;
+      switch ($1) {
+        case FUNC_LENGTH: {
+          name += "LENGTH(";
+        }break;
+        case FUNC_ROUND: {
+          name += "ROUND(";
+        }break;
+        case FUNC_DATE_FORMAT: {
+          name += "DATE_FORMAT(";
+        }break;
+      }
+      name += $3->name();
+      name += ")";
+      $$->set_name(name);
     }
     | func LBRACE expression COMMA expression RBRACE {
       $$ = new FuncExpr($1, 2, $3, $5);
+      std::string name;
+      switch ($1) {
+        case FUNC_LENGTH: {
+          name += "LENGTH(";
+        }break;
+        case FUNC_ROUND: {
+          name += "ROUND(";
+        }break;
+        case FUNC_DATE_FORMAT: {
+          name += "DATE_FORMAT(";
+        }break;
+      }
+      name += $3->name();
+      name += ", ";
+      name += $5->name();
+      name += ")";
+      $$->set_name(name);
     }
     ;
 

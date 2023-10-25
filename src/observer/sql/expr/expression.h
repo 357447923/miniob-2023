@@ -373,9 +373,6 @@ public:
 
   AttrType value_type() const override;
   
-  /**
-   * 聚合函数都是搭配GroupBy算子来使用的，所以这个Tuple固定为GroupTuple
-   */
   RC get_value(const Tuple &tuple, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
@@ -425,9 +422,9 @@ public:
     return param_size_;
   }
 
-  static void find_field_need(const Table *table, FuncExpr *func_expr);
+  static RC find_field_need(const Table *table, FuncExpr *func_expr);
 
-  static void find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr);
+  static RC find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr);
 
 private:
   RC get_func_length_value(const Tuple &tuple, Value &value) const;

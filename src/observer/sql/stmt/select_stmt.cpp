@@ -144,7 +144,6 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
                 table_name = relation_attr.relation_name.c_str();
                 field_name = relation_attr.attribute_name.c_str();
             } else {
-                // 这里仅需考虑算数表达式(目前还没有除了表达式和字段之外的语法)
                 switch(relation_attr.expression->type()) {
                     case ExprType::ARITHMETIC: {
                         ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)relation_attr.expression;
@@ -156,7 +155,10 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
                     }break;
                     case ExprType::FUNC: {
                         FuncExpr *func_expr = (FuncExpr *)relation_attr.expression;
-                        FuncExpr::find_field_need(table_map, func_expr);
+                        RC rc = FuncExpr::find_field_need(table_map, func_expr);
+                        if (rc != RC::SUCCESS) {
+                            return rc;
+                        }
                         query_expressions.emplace_back(relation_attr.expression);
                     }break;
                     default: {
@@ -257,12 +259,19 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
                     }break;
                     case ExprType::FUNC: {
                         FuncExpr *func_expr = (FuncExpr *)relation_attr.expression;
-                        FuncExpr::find_field_need(table, func_expr);
+                        RC rc = FuncExpr::find_field_need(table, func_expr);
+                        if (rc != RC::SUCCESS) {
+                            return rc;
+                        }
                         func_expr->set_alias(alias);
                         query_expressions.emplace_back(func_expr);
+                    }break;
+
+                    default: {
+                        LOG_ERROR("cannot handle this expression, type: %d", relation_attr.expression->type());
+                        return RC::UNIMPLENMENT;
                     }
                 }
-                // 其他的类型暂时不处理，因为目前relation_attr的expression属性有值的情况有且仅有其为算数表达式
                 continue;
             }
             if (relation_attr.type == FUNC_NONE) {
