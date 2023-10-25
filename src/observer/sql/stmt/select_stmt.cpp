@@ -73,9 +73,12 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
     // collect tables in `from` statement
     std::vector<Table*> tables;
     std::unordered_map<std::string, Table*> table_map;
+    std::unordered_set<std::string> alias_set;
+    // std::unordered_map<Table *, std::string> alias_map;
     // 建立表名和表的映射关系
     for (size_t i = 0; i < select_sql.relations.size(); i++) {
-        const char* table_name = select_sql.relations[i].c_str();
+        const char* table_name = select_sql.relations[i].table.c_str();
+        const char* alias_name = select_sql.relations[i].alias.get();
         if (common::is_blank(table_name)) {
             LOG_WARN("invalid argument. relation name is null. index=%d", i);
             return RC::INVALID_ARGUMENT;
@@ -87,8 +90,21 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
             return RC::SCHEMA_TABLE_NOT_EXIST;
         }
 
+        if (nullptr != alias_name) {
+            if (common::is_blank(alias_name) || table_map.contains(alias_name)) {
+                return RC::SQL_SYNTAX;
+            }
+        }
+
         tables.push_back(table);
         table_map.insert(std::pair<std::string, Table*>(table_name, table));
+        alias_set.insert(table_name);
+
+        if (nullptr != alias_name) {
+            table_map.insert(std::pair<std::string, Table *>(alias_name, table));
+            alias_set.insert(alias_name);
+            // alias_map.insert(std::pair<Table *, std::string>(table, alias_name));
+        }
     }
 
     // collect query fields in `select` statement
@@ -115,6 +131,13 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
             // 如果是 t.*就把'*'展开
             const char* table_name;
             const char* field_name;
+            const char* alias = relation_attr.alias.get();
+            if (alias) {
+                if (alias_set.contains(alias)) {
+                    return RC::SQL_SYNTAX;
+                }
+                alias_set.insert(alias);
+            }
 
             if (relation_attr.expression == nullptr) {
                 table_name = relation_attr.relation_name.c_str();
@@ -158,14 +181,25 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                         return RC::SCHEMA_FIELD_MISSING;
                     }
                     if (relation_attr.type == FUNC_NONE) {
-                        query_expressions.emplace_back(new FieldExpr(table, field_meta));
+                        auto field_expr = new FieldExpr(table, field_meta);
+                        field_expr->set_alias(alias);
+                        query_expressions.emplace_back(field_expr);
                     } else {
                         contains_aggr_func = true;
-                        query_expressions.emplace_back(new AggrFuncExpr(relation_attr.type, new FieldExpr(table, field_meta)));
+                        auto aggr_expr = new AggrFuncExpr(relation_attr.type, new FieldExpr(table, field_meta));
+                        aggr_expr->set_alias(alias);
+                        query_expressions.emplace_back(aggr_expr);
                     }
                 }
             }
         } else {
+            const char *alias = relation_attr.alias.get();
+            if (alias) {
+                if (alias_set.contains(alias)) {
+                    return RC::SQL_SYNTAX;
+                }
+                alias_set.insert(alias);
+            }
             // select id from xxx(查询时字段没写表名的情况，miniob中不考虑select id from x1, x2中id只有一个表中存在的情况)
             if (tables.size() != 1) {
                 if (!relation_attr.expression) {
@@ -180,6 +214,7 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                 // 没写表名的时候也可能是select 1+1 这种情况
                 ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)(relation_attr.expression);
                 ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
+                arithmetic_expr->set_alias(alias);
                 if (arithmetic_expr->contains_aggr()) {
                     contains_aggr_func = true;
                 }
@@ -195,6 +230,7 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                     // 填充算术表达式中的字段
                     ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)relation_attr.expression;
                     ArithmeticExpr::find_field_need(table, arithmetic_expr);
+                    arithmetic_expr->set_alias(alias);
                     if (arithmetic_expr->contains_aggr()) {
                         contains_aggr_func = true;
                     }
@@ -210,9 +246,10 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                     clean_expr_when_fail(query_expressions);
                     return RC::SCHEMA_FIELD_NOT_EXIST;
                 }
-                query_expressions.push_back(new FieldExpr(table, field_meta, FUNC_NONE));
+                auto field_expr = new FieldExpr(table, field_meta, FUNC_NONE);
+                field_expr->set_alias(alias);
+                query_expressions.push_back(field_expr);
             } else {
-                // int len = strlen(AGGR_FUNC_TYPE_NAME[relation_attr.type]);
                 const char* field_name = relation_attr.attribute_name.c_str();
                 // 检查field_name是否符合: 仅有一个"*"或为纯数字
                 if (std::regex_match(field_name, std::regex("^(\\*|\\d+)$"))) {
@@ -223,7 +260,9 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                         return RC::SQL_SYNTAX;
                     }
                     contains_aggr_func = true;
-                    query_expressions.push_back(new AggrFuncExpr(relation_attr.type, new ValueExpr(Value(field_name))));
+                    auto aggr_expr = new AggrFuncExpr(relation_attr.type, new ValueExpr(Value(field_name)));
+                    aggr_expr->set_alias(alias);
+                    query_expressions.push_back(aggr_expr);
                     continue;
                 }
                 field_meta = table->table_meta().field(field_name);
@@ -240,6 +279,7 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                 }
                 contains_aggr_func = true;
                 Expression* aggr_expr = new AggrFuncExpr(relation_attr.type, new FieldExpr(table, field_meta, relation_attr.type));
+                aggr_expr->set_alias(alias);
                 query_expressions.push_back(aggr_expr);
             }
         }

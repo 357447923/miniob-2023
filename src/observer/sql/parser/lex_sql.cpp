@@ -385,8 +385,8 @@ static void yynoreturn yy_fatal_error ( const char* msg , yyscan_t yyscanner );
 	yyg->yy_hold_char = *yy_cp; \
 	*yy_cp = '\0'; \
 	yyg->yy_c_buf_p = yy_cp;
-#define YY_NUM_RULES 76
-#define YY_END_OF_BUFFER 77
+#define YY_NUM_RULES 77
+#define YY_END_OF_BUFFER 78
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -396,30 +396,30 @@ struct yy_trans_info
 	};
 static const flex_int16_t yy_accept[216] =
     {   0,
-        0,    0,    0,    0,   77,   75,    1,    2,   75,   75,
-       75,   59,   60,   71,   69,   61,   70,    6,   72,    3,
-        5,   66,   62,   68,   58,   58,   58,   58,   58,   58,
-       58,   58,   58,   58,   58,   58,   58,   58,   58,   58,
-       58,   58,   58,   58,   58,   76,   65,    0,   73,    0,
-       74,    0,    3,   63,   64,   67,   58,   58,   58,   58,
-       58,   58,   53,   58,   58,   58,   58,   58,   58,   58,
-       58,   58,   58,   58,   58,   58,   42,   39,   58,   58,
-       58,   58,   58,   58,   58,   16,   58,   58,   58,   58,
-       58,   58,   58,   58,   58,   58,    4,   24,   55,   48,
+        0,    0,    0,    0,   78,   76,    1,    2,   76,   76,
+       76,   60,   61,   72,   70,   62,   71,    6,   73,    3,
+        5,   67,   63,   69,   59,   59,   59,   59,   59,   59,
+       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
+       59,   59,   59,   59,   59,   77,   66,    0,   74,    0,
+       75,    0,    3,   64,   65,   68,   59,   59,   59,   58,
+       59,   59,   53,   59,   59,   59,   59,   59,   59,   59,
+       59,   59,   59,   59,   59,   59,   42,   39,   59,   59,
+       59,   59,   59,   59,   59,   16,   59,   59,   59,   59,
+       59,   59,   59,   59,   59,   59,    4,   24,   55,   48,
 
-       58,   58,   58,   58,   58,   58,   58,   58,   58,   58,
-       58,   58,   58,   58,   58,   58,   58,   58,   58,   58,
-       58,   34,   58,   58,   58,   47,   49,   40,   58,   58,
-       58,   58,   30,   58,   51,   58,   58,   58,   58,   58,
-       58,   20,   35,   58,   58,   58,   44,   37,   58,   56,
-       10,   58,    7,   58,   58,   21,   58,   58,    8,   58,
-       58,   58,   58,   26,   15,   57,   43,   38,   58,   58,
-       58,   17,   18,   58,   58,   58,   58,   31,   58,   50,
-       58,   58,   58,   58,   36,   52,   58,   13,   58,   14,
-       58,   54,   58,   58,   11,   58,   58,   22,   32,    9,
+       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
+       59,   59,   59,   59,   59,   59,   59,   59,   59,   59,
+       59,   34,   59,   59,   59,   47,   49,   40,   59,   59,
+       59,   59,   30,   59,   51,   59,   59,   59,   59,   59,
+       59,   20,   35,   59,   59,   59,   44,   37,   59,   56,
+       10,   59,    7,   59,   59,   21,   59,   59,    8,   59,
+       59,   59,   59,   26,   15,   57,   43,   38,   59,   59,
+       59,   17,   18,   59,   59,   59,   59,   31,   59,   50,
+       59,   59,   59,   59,   36,   52,   59,   13,   59,   14,
+       59,   54,   59,   59,   11,   59,   59,   22,   32,    9,
 
-       28,   41,   58,   23,   45,   25,   58,   19,   12,   29,
-       27,   46,   58,   33,    0
+       28,   41,   59,   23,   45,   25,   59,   19,   12,   29,
+       27,   46,   59,   33,    0
     } ;
 
 static const YY_CHAR yy_ec[256] =
@@ -1344,37 +1344,37 @@ RETURN_TOKEN(LIKE);
 case 58:
 YY_RULE_SETUP
 #line 136 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-yylval->string=strdup(yytext); RETURN_TOKEN(ID);
+RETURN_TOKEN(AS);
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
 #line 137 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(LBRACE);
+yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
 #line 138 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(RBRACE);
+RETURN_TOKEN(LBRACE);
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
 #line 139 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(COMMA);
+RETURN_TOKEN(RBRACE);
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
 #line 140 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(EQ);
+RETURN_TOKEN(COMMA);
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
 #line 141 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(LE);
+RETURN_TOKEN(EQ);
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
 #line 142 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(NE);
+RETURN_TOKEN(LE);
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
@@ -1384,34 +1384,33 @@ RETURN_TOKEN(NE);
 case 66:
 YY_RULE_SETUP
 #line 144 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(LT);
+RETURN_TOKEN(NE);
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
 #line 145 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(GE);
+RETURN_TOKEN(LT);
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
 #line 146 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-RETURN_TOKEN(GT);
+RETURN_TOKEN(GE);
 	YY_BREAK
 case 69:
-#line 149 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
+YY_RULE_SETUP
+#line 147 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
+RETURN_TOKEN(GT);
+	YY_BREAK
 case 70:
 #line 150 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
 case 71:
 #line 151 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
 case 72:
-YY_RULE_SETUP
-#line 151 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-{ return yytext[0]; }
-	YY_BREAK
+#line 152 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
 case 73:
-/* rule 73 can match eol */
 YY_RULE_SETUP
 #line 152 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
+{ return yytext[0]; }
 	YY_BREAK
 case 74:
 /* rule 74 can match eol */
@@ -1420,16 +1419,22 @@ YY_RULE_SETUP
 yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 	YY_BREAK
 case 75:
+/* rule 75 can match eol */
 YY_RULE_SETUP
-#line 155 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
-LOG_DEBUG("Unknown character [%c]",yytext[0]); return yytext[0];
+#line 154 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
+yylval->string = strdup(yytext); RETURN_TOKEN(SSS);
 	YY_BREAK
 case 76:
 YY_RULE_SETUP
 #line 156 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
+LOG_DEBUG("Unknown character [%c]",yytext[0]); return yytext[0];
+	YY_BREAK
+case 77:
+YY_RULE_SETUP
+#line 157 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
 ECHO;
 	YY_BREAK
-#line 1433 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.cpp"
+#line 1438 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.cpp"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(STR):
 	yyterminate();
@@ -2585,7 +2590,7 @@ void yyfree (void * ptr , yyscan_t yyscanner)
 
 #define YYTABLES_NAME "yytables"
 
-#line 156 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
+#line 157 "/home/xiaoming/miniob-competition/src/observer/sql/parser/lex_sql.l"
 
 
 void scan_string(const char *str, yyscan_t scanner) {

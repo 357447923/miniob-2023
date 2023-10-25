@@ -116,11 +116,12 @@ extern int yydebug;
     GE = 317,                      /* GE  */
     NE = 318,                      /* NE  */
     LIKE = 319,                    /* LIKE  */
-    NUMBER = 320,                  /* NUMBER  */
-    FLOAT = 321,                   /* FLOAT  */
-    ID = 322,                      /* ID  */
-    SSS = 323,                     /* SSS  */
-    UMINUS = 324                   /* UMINUS  */
+    AS = 320,                      /* AS  */
+    NUMBER = 321,                  /* NUMBER  */
+    FLOAT = 322,                   /* FLOAT  */
+    ID = 323,                      /* ID  */
+    SSS = 324,                     /* SSS  */
+    UMINUS = 325                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -129,7 +130,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 132 "/home/xiaoming/miniob-competition/src/observer/sql/parser/yacc_sql.y"
+#line 138 "/home/xiaoming/miniob-competition/src/observer/sql/parser/yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -154,7 +155,7 @@ union YYSTYPE
   int                               number;
   float                             floats;
 
-#line 158 "/home/xiaoming/miniob-competition/src/observer/sql/parser/yacc_sql.hpp"
+#line 159 "/home/xiaoming/miniob-competition/src/observer/sql/parser/yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

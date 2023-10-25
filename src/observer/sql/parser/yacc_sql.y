@@ -52,6 +52,11 @@ static inline void modify_2_negative(Value *value) {
   }
 }
 
+void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node) {
+  node.table = table_name;
+  node.alias.reset(alias);
+}
+
 %}
 
 %define api.pure full
@@ -127,6 +132,7 @@ static inline void modify_2_negative(Value *value) {
         GE
         NE
         LIKE
+        AS
 
 /** union 中定义各种数据类型，真实生成的代码也是union类型，所以不能有非POD类型的数据 **/
 %union {
@@ -169,6 +175,7 @@ static inline void modify_2_negative(Value *value) {
 %type <comp>                comp_op
 %type <agg_func>            agg_func
 %type <rel_attr>            rel_attr
+%type <string>              alias
 %type <attr_infos>          attr_def_list
 %type <attr_info>           attr_def
 %type <value_list>          value_list
@@ -578,39 +585,41 @@ update_stmt:      /*  update 语句的语法解析树*/
     }
     ;
 select_stmt:        /*  select 语句的语法解析树*/
-    SELECT select_attr FROM ID rel_condition_list where group order having
+    SELECT select_attr FROM ID alias rel_condition_list where group order having
     {
       $$ = new ParsedSqlNode(SCF_SELECT);
       if ($2 != nullptr) {
         $$->selection.attributes.swap(*$2);
         delete $2;
       }
-      if ($5 != nullptr) {
-        $$->selection.relations.swap($5->_rel_list);
-        $$->selection.join_conditions.swap($5->_condition_list);
-        std::reverse($$->selection.join_conditions.begin(), $$->selection.join_conditions.end());
-        delete $5;
-      }
-      $$->selection.relations.push_back($4);
-      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       if ($6 != nullptr) {
-        $$->selection.conditions.swap(*$6);
+        $$->selection.relations.swap($6->_rel_list);
+        $$->selection.join_conditions.swap($6->_condition_list);
+        std::reverse($$->selection.join_conditions.begin(), $$->selection.join_conditions.end());
         delete $6;
       }
+      RelationSqlNode node;
+      init_relation_sql_node($4, $5, node);
+      $$->selection.relations.push_back(node);
+      std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       if ($7 != nullptr) {
-        std::reverse($7->begin(), $7->end());
-        $$->selection.groups.swap(*$7);
+        $$->selection.conditions.swap(*$7);
         delete $7;
       }
       if ($8 != nullptr) {
         std::reverse($8->begin(), $8->end());
-        $$->selection.orders.swap(*$8);
+        $$->selection.groups.swap(*$8);
         delete $8;
       }
       if ($9 != nullptr) {
         std::reverse($9->begin(), $9->end());
-        $$->selection.havings.swap(*$9);
+        $$->selection.orders.swap(*$9);
         delete $9;
+      }
+      if ($10 != nullptr) {
+        std::reverse($10->begin(), $10->end());
+        $$->selection.havings.swap(*$10);
+        delete $10;
       }
       free($4);
     }
@@ -711,14 +720,28 @@ select_attr:
       attr.attribute_name = "*";
       $$->emplace_back(attr);
     }
-    | rel_attr attr_list {
-      if ($2 != nullptr) {
-        $$ = $2;
+    | rel_attr alias attr_list {
+      if ($3 != nullptr) {
+        $$ = $3;
       } else {
         $$ = new std::vector<RelAttrSqlNode>;
       }
+      $1->alias.reset($2);
       $$->emplace_back(*$1);
       delete $1;
+    }
+    ;
+
+alias:
+    /* empty */
+    {
+      $$ = nullptr;
+    }
+    | ID {
+      $$ = $1;
+    }
+    | AS ID %prec UMINUS {
+      $$ = $2;
     }
     ;
 
@@ -758,38 +781,41 @@ rel_attr:
       }
     }
     // 子查询
-    | LBRACE SELECT rel_attr FROM ID rel_condition_list where group order having RBRACE {
+    | LBRACE SELECT rel_attr alias FROM ID alias rel_condition_list where group order having RBRACE {
       $$ = new RelAttrSqlNode;
       SelectSqlNode *sub_query = new SelectSqlNode;
+      $3->alias.reset($4);
       sub_query->attributes.push_back(*$3);
-      if ($6 != nullptr) {
-        sub_query->relations.swap($6->_rel_list);
-        delete $6;
-      }
-      sub_query->relations.push_back($5);
-      std::reverse(sub_query->relations.begin(), sub_query->relations.end());
-      if ($7 != nullptr) {
-        sub_query->conditions.swap(*$7);
-        delete $7;
-      }
       if ($8 != nullptr) {
-        std::reverse($8->begin(), $8->end());
-        sub_query->groups.swap(*$8);
+        sub_query->relations.swap($8->_rel_list);
         delete $8;
       }
+      RelationSqlNode node;
+      init_relation_sql_node($6, $7, node);
+      sub_query->relations.push_back(node);
+      std::reverse(sub_query->relations.begin(), sub_query->relations.end());
       if ($9 != nullptr) {
-        std::reverse($9->begin(), $9->end());
-        sub_query->orders.swap(*$9);
+        sub_query->conditions.swap(*$9);
         delete $9;
       }
       if ($10 != nullptr) {
         std::reverse($10->begin(), $10->end());
-        sub_query->havings.swap(*$10);
+        sub_query->groups.swap(*$10);
         delete $10;
+      }
+      if ($11 != nullptr) {
+        std::reverse($11->begin(), $11->end());
+        sub_query->orders.swap(*$11);
+        delete $11;
+      }
+      if ($12 != nullptr) {
+        std::reverse($12->begin(), $12->end());
+        sub_query->havings.swap(*$12);
+        delete $12;
       }
       $$->sub_query = std::shared_ptr<SelectSqlNode>(sub_query);
       delete $3;
-      free($5);
+      free($6);
     }
     // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
     | LBRACE value value_list RBRACE %prec UMINUS {
@@ -809,13 +835,13 @@ attr_list:
     {
       $$ = nullptr;
     }
-    | COMMA rel_attr attr_list {
-      if ($3 != nullptr) {
-        $$ = $3;
+    | COMMA rel_attr alias attr_list {
+      if ($4 != nullptr) {
+        $$ = $4;
       } else {
         $$ = new std::vector<RelAttrSqlNode>;
       }
-
+      $2->alias.reset($3);
       $$->emplace_back(*$2);
       delete $2;
     }
@@ -828,31 +854,31 @@ rel_condition_list:
       $$ = nullptr;
     }
     /* , t1  */
-    | COMMA ID rel_condition_list {
-      if ($3 != nullptr) {
-        $$ = $3;
+    | COMMA ID alias rel_condition_list {
+      if ($4 != nullptr) {
+        $$ = $4;
       } else {
         $$ = new RelationAndConditionTempList;
-        $$->_rel_list = *(new std::vector<std::string>);
-        $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
       }
-      $$->_rel_list.push_back($2);
+      RelationSqlNode node;
+      init_relation_sql_node($2, $3, node);
+      $$->_rel_list.push_back(node);
       free($2);
     }
     // inner join t1 on
-    | INNER JOIN ID condition_list rel_condition_list{
-      if ($5 != nullptr) {
-        $$ = $5;
+    | INNER JOIN ID alias condition_list rel_condition_list{
+      if ($6 != nullptr) {
+        $$ = $6;
       } else {
         $$ = new RelationAndConditionTempList;
-        $$->_rel_list = *(new std::vector<std::string>);
-        $$->_condition_list = *(new std::vector<std::vector<ConditionSqlNode>>);
       }
-      if($4 != nullptr) {
-          $$->_condition_list.push_back(*($4));
-          delete $4;
+      if($5 != nullptr) {
+          $$->_condition_list.push_back(*($5));
+          delete $5;
       }
-      $$->_rel_list.push_back($3);
+      RelationSqlNode node;
+      init_relation_sql_node($3, $4, node);
+      $$->_rel_list.push_back(node);
       free($3);
       std::cout << "inner join parse finished" << std::endl;
     }
@@ -928,12 +954,6 @@ condition:
       delete $1;
       delete $3;
     }
-    | rel_attr IN LBRACE value value_list RBRACE {
-      $$ = nullptr;
-    }
-    | rel_attr NOT IN LBRACE value value_list RBRACE {
-      $$ = nullptr;
-    } 
     ;
 
 group:
