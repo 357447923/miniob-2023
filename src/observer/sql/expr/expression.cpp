@@ -313,6 +313,11 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 
   rc = compare_value(left_value, right_value, bool_value);
   if (rc == RC::SUCCESS) {
+    if (!bool_value)
+    {
+      LOG_INFO("filter out value: %d",left_value.get_int());
+    }
+    
     value.set_boolean(bool_value);
   }
   return rc;

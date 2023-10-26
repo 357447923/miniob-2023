@@ -786,7 +786,6 @@ RC BplusTreeHandler::create(const char* file_name,
   }
   int length_sum = 0;  // index_key的总长度
   char *pdata = header_frame->data();
-  file_header_.attr_num = attr_length.size();
   IndexFileHeader *file_header = (IndexFileHeader *)pdata;
   for (int i = 0; i < attr_length.size(); i++) {
     length_sum += attr_length[i];
@@ -806,6 +805,7 @@ RC BplusTreeHandler::create(const char* file_name,
   file_header->leaf_max_size = leaf_max_size;
   file_header->root_page = BP_INVALID_PAGE_NUM;
   file_header->index_type = indexType;
+  file_header->attr_num = attr_length.size();
   // 标记分配的头部页面为脏页
   header_frame->mark_dirty();
 
@@ -1408,7 +1408,7 @@ RC BplusTreeHandler::insert_entry(const char *user_key, const RID *rid)
     pos += file_header_.attr_length[i];
   }
 
-  MemPoolItem::unique_ptr pkey = make_key(user_key, *rid);
+  MemPoolItem::unique_ptr pkey = make_key(fixed_user_key, *rid);
   if (pkey == nullptr) {
     LOG_WARN("Failed to alloc memory for key.");
     return RC::NOMEM;
@@ -1849,7 +1849,7 @@ bool BplusTreeScanner::touch_end()
   }
   
   LeafIndexNodeHandler node(tree_handler_.file_header_, current_frame_);
-  const char *this_key = node.key_at(iter_index_);
+  const char *this_key = node.key_at(iter_index_);// 当前的key是不是已经超过了右边的key
   int compare_result = tree_handler_.key_comparator_(this_key, static_cast<char *>(right_key_.get()));
   return compare_result > 0;
 }
