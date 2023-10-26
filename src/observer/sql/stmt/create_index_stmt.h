@@ -17,7 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 
 #include "sql/stmt/stmt.h"
-#include "storage/index/idnex_type.h"
+#include "storage/index/index_type.h"
 
 struct CreateIndexSqlNode;
 class Table;

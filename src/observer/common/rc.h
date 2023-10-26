@@ -82,6 +82,8 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(LEFT_CAN_NOT_CMP_TO_ANOTHER)    \
   DEFINE_RC(LEFT_LIKE_ANOTHER)              \
   DEFINE_RC(LEFT_NOT_LIKE_ANOTHER)          \
+  DEFINE_RC(INDEX_GENERIC_ERROR)            \
+  DEFINE_RC(GENERIC_ERROR)                  \
 
 
 
