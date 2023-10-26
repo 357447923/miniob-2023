@@ -730,7 +730,17 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
-    | ID DOT '*'
+    | ID DOT '*' attr_list {
+      if ($4 != nullptr) {
+        $$ = $4;
+      }else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      RelAttrSqlNode node;
+      node.relation_name = $1;
+      node.attribute_name = "*";
+      free($1);
+    }
     ;
 
 alias:
@@ -847,7 +857,16 @@ attr_list:
       delete $2;
     }
     | COMMA ID DOT '*' attr_list {
-
+      if ($5 != nullptr) {
+        $$ = $5;
+      }else {
+        $$ = new std::vector<RelAttrSqlNode>;
+      }
+      RelAttrSqlNode node;
+      node.relation_name = $2;
+      node.attribute_name = "*";
+      $$->push_back(node);
+      free($2);
     }
     ;
 
