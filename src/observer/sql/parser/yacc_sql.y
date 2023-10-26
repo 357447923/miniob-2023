@@ -730,6 +730,7 @@ select_attr:
       $$->emplace_back(*$1);
       delete $1;
     }
+    | ID DOT '*'
     ;
 
 alias:
@@ -844,6 +845,9 @@ attr_list:
       $2->alias.reset($3);
       $$->emplace_back(*$2);
       delete $2;
+    }
+    | COMMA ID DOT '*' attr_list {
+
     }
     ;
 
