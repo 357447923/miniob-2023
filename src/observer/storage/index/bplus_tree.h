@@ -73,8 +73,8 @@ public:
   {
     // TODO multi-index compare with null value
     int rc = 0;
-    int pos = attr_length_[0];
-    for (size_t i = 1; i < attr_length_.size(); i++) {
+    int pos = 0;
+    for (size_t i = 0; i < attr_length_.size(); i++) {
       switch (attr_type_[i]) {
         case INTS:
         case DATES: {
