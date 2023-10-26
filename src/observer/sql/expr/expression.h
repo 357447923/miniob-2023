@@ -107,8 +107,19 @@ public:
   virtual std::string name() const { return name_; }
   virtual void set_name(std::string name) { name_ = name; }
 
+  virtual const char *alias() const {
+    return alias_;
+  }
+
+  virtual void set_alias(const char *alias) {
+    alias_ = alias;
+  }
+
 private:
-  std::string  name_;
+  std::string name_;
+  // 最好来说是name_就是alias_,但是此处的name_被我用在了FieldExpr等表达式解析上
+  // 所以被迫无奈再加一个alias_的字段
+  const char *alias_ = nullptr;
 };
 
 /**

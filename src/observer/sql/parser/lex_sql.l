@@ -133,6 +133,7 @@ ORDER                                   RETURN_TOKEN(ORDER);
 ASC                                     RETURN_TOKEN(ASC);
 DESC                                    RETURN_TOKEN(DESC);
 LIKE                                    RETURN_TOKEN(LIKE);
+AS                                      RETURN_TOKEN(AS);
 {ID}                                    yylval->string=strdup(yytext); RETURN_TOKEN(ID);
 "("                                     RETURN_TOKEN(LBRACE);
 ")"                                     RETURN_TOKEN(RBRACE);

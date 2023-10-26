@@ -103,6 +103,13 @@ RC PredicatePhysicalOperator::next()
     }
 
     Value value;
+    JoinedTuple joined_tuple;
+    if (parent_tuple_ != nullptr) {
+      joined_tuple.set_left(tuple);
+      // 这里只用于查询, 没有用于其他操作
+      joined_tuple.set_right(const_cast<Tuple *>(parent_tuple_));
+      tuple = &joined_tuple;
+    }
     rc = expression_->get_value(*tuple, value);
     if (rc != RC::SUCCESS) {
       return rc;

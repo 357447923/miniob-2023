@@ -81,6 +81,7 @@ struct RelAttrSqlNode
   std::string relation_name;   ///< relation name (may be NULL) 表名
   std::string attribute_name;  ///< attribute name              属性名
   std::shared_ptr<SelectSqlNode> sub_query;    ///< 子查询属性, 当没有子查询时为nullptr
+  std::shared_ptr<char> alias = nullptr; ///< 别名(属于这个node管理, 生命周期为一条语句)
 };
 
 /**
@@ -117,7 +118,7 @@ struct OrderSqlNode
 struct RelationSqlNode
 {
   std::string table;
-
+  std::shared_ptr<char> alias;
 };
 
 struct JoinSqlNode
@@ -141,7 +142,7 @@ struct JoinSqlNode
 struct SelectSqlNode
 {
   std::vector<RelAttrSqlNode>     attributes;    ///< attributes in select clause
-  std::vector<std::string>        relations;     ///< 查询的表
+  std::vector<RelationSqlNode>        relations;     ///< 查询的表
   std::vector<std::vector<ConditionSqlNode>> join_conditions;  ///< 存放 on 后面的连接条件
   std::vector<ConditionSqlNode>   conditions;    ///< 查询条件，使用AND串联起来多个条件
   std::vector<RelAttrSqlNode>     groups;        ///< 分组信息
@@ -310,7 +311,7 @@ struct ErrorSqlNode
 };
 
 struct RelationAndConditionTempList {
-    std::vector<std::string> _rel_list;
+    std::vector<RelationSqlNode> _rel_list;
     std::vector<std::vector<ConditionSqlNode>> _condition_list;
 };
 

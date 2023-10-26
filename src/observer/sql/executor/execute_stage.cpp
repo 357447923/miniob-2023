@@ -56,12 +56,16 @@ static inline void append_aggr_schema(TupleSchema &tuple_schema, bool with_table
   FieldExpr *field = expr->field();
   if (field) {
     if (with_table_name) {
-      tuple_schema.append_cell(TupleCellSpec(field->table_name(), field->field_name(), nullptr, expr->aggr_type()));
+      tuple_schema.append_cell(TupleCellSpec(field->table_name(), field->field_name(), expr->alias(), expr->aggr_type()));
     }else {
-      tuple_schema.append_cell(TupleCellSpec(nullptr, field->field_name(), nullptr, expr->aggr_type()));
+      tuple_schema.append_cell(TupleCellSpec(nullptr, field->field_name(), expr->alias(), expr->aggr_type()));
     }
   }else {
     Value &value = const_cast<Value &>(expr->value()->get_value());
+    if (expr->alias() != nullptr) {
+      tuple_schema.append_cell(TupleCellSpec(expr->alias(), expr->aggr_type()));
+      return;
+    }
     std::string display;
     display.append(AGGR_FUNC_TYPE_NAME[expr->aggr_type()]).append("(").append(value.data()).append(")");
     value.set_string(display.c_str(), display.size());
@@ -84,14 +88,12 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   switch (stmt->type()) {
     case StmtType::SELECT: {
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
-      // TODO 不一定是多表才会带着表名
+      // 不一定是多表才会带着表名
+      // 但miniob可以这样认为
       bool with_table_name = select_stmt->tables().size() > 1;
       const std::vector<Expression *> &expressions = select_stmt->query_expressions();
-      // 用于获取别名
-      // TODO 支持别名
-      const std::vector<RelAttrSqlNode> &attrs = sql_event->sql_node()->selection.attributes;
+    
       for (int i = 0; i < expressions.size(); i++) {
-        int idx = attrs.size() - 1 - i;
         switch(expressions[i]->type()) {
           case ExprType::AGGRFUNCTION: {
             AggrFuncExpr *aggr_expr = static_cast<AggrFuncExpr *>(expressions[i]);
@@ -101,14 +103,15 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
             FieldExpr *field_expr = static_cast<FieldExpr *>(expressions[i]);
             if (with_table_name) {
               schema.append_cell(TupleCellSpec(field_expr->table_name(), 
-                  field_expr->field_name(), nullptr));
+                  field_expr->field_name(), field_expr->alias()));
             }else {
               schema.append_cell(TupleCellSpec(field_expr->field_name(), 
-                  nullptr));
+                  field_expr->alias()));
             }
           }break;
           case ExprType::ARITHMETIC: {
-            schema.append_cell(expressions[i]->name().c_str());
+            const char *alias = expressions[i]->alias();
+            schema.append_cell(alias? alias: expressions[i]->name().c_str());
           }break;
           default: {
             LOG_WARN("Execute_stage couldn't handle expr_type => %d", expressions[i]->type());
@@ -120,7 +123,8 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::CALC: {
       CalcPhysicalOperator *calc_operator = static_cast<CalcPhysicalOperator *>(physical_operator.get());
       for (const unique_ptr<Expression> & expr : calc_operator->expressions()) {
-        schema.append_cell(expr->name().c_str());
+        const char *alias = expr->alias();
+        schema.append_cell(alias? alias: expr->name().c_str());
       }
     } break;
 
