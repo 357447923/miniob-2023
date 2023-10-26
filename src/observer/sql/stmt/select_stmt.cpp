@@ -64,7 +64,8 @@ static void clean_expr_when_fail(std::vector<Expression*>& exprs) {
     exprs.clear();
 }
 
-RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
+RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector<Table *> &parent_tables,
+        const std::unordered_map<std::string, Table *> &parent_table_map, Stmt*& stmt) {
     if (nullptr == db) {
         LOG_WARN("invalid argument. db is null");
         return RC::INVALID_ARGUMENT;
@@ -163,14 +164,19 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
                     wildcard_fields(table, query_expressions);
                 }
             } else {
+                Table *table;
                 auto iter = table_map.find(table_name);
-                if (iter == table_map.end()) {
-                    LOG_WARN("no such table in from list: %s", table_name);
-                    clean_expr_when_fail(query_expressions);
-                    return RC::SCHEMA_FIELD_MISSING;
+                if (iter != table_map.end()) {
+                    table = iter->second;
+                }else {
+                    auto parent_iter = parent_table_map.find(table_name);
+                    if (parent_iter == parent_table_map.end()) {
+                        LOG_WARN("no such table in from list: %s", table_name);
+                        clean_expr_when_fail(query_expressions);
+                        return RC::SCHEMA_FIELD_MISSING;
+                    }
+                    table = parent_iter->second;
                 }
-
-                Table* table = iter->second;
                 if (0 == strcmp(field_name, "*")) {
                     wildcard_fields(table, query_expressions);
                 } else {
@@ -298,10 +304,14 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
     HavingStmt* having_stmt = nullptr;
     SelectStmt* select_stmt = nullptr;
 
+    std::unordered_map<std::string, Table *> temp_table_map = table_map;
+    temp_table_map.insert(parent_table_map.begin(), parent_table_map.end());
+    
     // create filter statement in `where` statement
     RC rc = FilterStmt::create(db,
                                default_table,
-                               &table_map,
+                               &temp_table_map,
+                               tables,
                                select_sql.conditions.data(),
                                static_cast<int>(select_sql.conditions.size()),
                                filter_stmt);
@@ -312,7 +322,7 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, Stmt*& stmt) {
     // 构造inner_join_filter_stmt
     if (select_sql.join_conditions.size() != 0) {
         for (std::vector<ConditionSqlNode> join_condition : select_sql.join_conditions) {
-            rc = FilterStmt::create(db, default_table, &table_map, join_condition.data(), static_cast<int>(join_condition.size()), inner_join_filter_stmt);
+            rc = FilterStmt::create(db, default_table, &temp_table_map, tables, join_condition.data(), static_cast<int>(join_condition.size()), inner_join_filter_stmt);
             if (rc != RC::SUCCESS) {
                 LOG_WARN("cannot construct inner join filter stmt");
                 goto err_handler;

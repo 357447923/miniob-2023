@@ -30,8 +30,8 @@ FilterStmt::~FilterStmt()
   filter_units_.clear();
 }
 
-RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
+RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables_map,
+    const std::vector<Table *> &tables, const ConditionSqlNode *conditions, int condition_num, FilterStmt *&stmt)
 {
   RC rc = RC::SUCCESS;
   stmt = nullptr;
@@ -39,7 +39,7 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
   FilterStmt *tmp_stmt = new FilterStmt();
   for (int i = 0; i < condition_num; i++) {
     FilterUnit *filter_unit = nullptr;
-    rc = create_filter_unit(db, default_table, tables, conditions[i], filter_unit);
+    rc = create_filter_unit(db, default_table, tables_map, tables, conditions[i], filter_unit);
     if (rc != RC::SUCCESS) {
       delete tmp_stmt;
       LOG_WARN("failed to create filter unit. condition index=%d", i);
@@ -94,8 +94,8 @@ static bool judge_subquery_correctness(SelectStmt *select_stmt) {
 /**
  * 初始化filter中的非value
  */
-static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables, 
-    const RelAttrSqlNode &attr, FilterObj &filter_obj) {
+static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables_map, 
+    const std::vector<Table *> &tables, const RelAttrSqlNode &attr, FilterObj &filter_obj) {
   if (attr.expression != nullptr) {
       // 尝试获取值，在这里能获取到值的就直接把filter转为值，减少后续重复计算
       Value val;
@@ -111,7 +111,7 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
           ArithmeticExpr *expr = static_cast<ArithmeticExpr *>(attr.expression);
           if (default_table == nullptr) {
             // 处理多表
-            ArithmeticExpr::find_field_need(*tables, expr);
+            ArithmeticExpr::find_field_need(*tables_map, expr);
           }else {
             // 处理单表
             ArithmeticExpr::find_field_need(default_table, expr);
@@ -131,7 +131,7 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
     }else if (attr.sub_query != nullptr) {
       SubQueryExpr *expr = new SubQueryExpr();
       Stmt *stmt = nullptr;
-      RC rc = SelectStmt::create(db, *attr.sub_query, stmt);
+      RC rc = SelectStmt::create(db, *attr.sub_query, tables, *tables_map, stmt);
       if (rc != RC::SUCCESS) {
         delete expr;
         LOG_ERROR("selectStmt create error in create subquery");
@@ -149,7 +149,7 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
     } else {
       Table *table = nullptr;
       const FieldMeta *field = nullptr;
-      RC rc = get_table_and_field(db, default_table, tables, attr, table, field);
+      RC rc = get_table_and_field(db, default_table, tables_map, attr, table, field);
       if (rc != RC::SUCCESS) {
         LOG_WARN("cannot find attr");
         return rc;
@@ -159,8 +159,8 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
     return RC::SUCCESS;
 }
 
-RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables,
-    const ConditionSqlNode &condition, FilterUnit *&filter_unit)
+RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables_map,
+    const std::vector<Table *> &tables, const ConditionSqlNode &condition, FilterUnit *&filter_unit)
 {
   RC rc = RC::SUCCESS;
 
@@ -183,7 +183,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj_left->init_value(condition.left_value);
   }else {
     // 初始化左边的表达式属性
-    rc = filter_attr_init(db, default_table, tables, condition.left_attr, *filter_obj_left);
+    rc = filter_attr_init(db, default_table, tables_map, tables, condition.left_attr, *filter_obj_left);
     // 处理错误
     if (rc != RC::SUCCESS) {
       delete filter_unit;
@@ -196,7 +196,7 @@ RC FilterStmt::create_filter_unit(Db *db, Table *default_table, std::unordered_m
     filter_obj_right->init_value(condition.right_value);
   }else {
     // 初始化右边的表达式属性
-    rc = filter_attr_init(db, default_table, tables, condition.right_attr, *filter_obj_right);
+    rc = filter_attr_init(db, default_table, tables_map, tables, condition.right_attr, *filter_obj_right);
     // 处理错误
     if (rc != RC::SUCCESS) {
       delete filter_unit;
