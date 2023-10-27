@@ -43,7 +43,8 @@ public:
   RC close() override;
 
   Tuple *current_tuple() override;
-
+  void set_idx_need_increase(bool idx_need_increase);
+  const bool get_idx_need_increase();
   void set_predicates(std::vector<std::unique_ptr<Expression>> &&exprs);
 
 private:
@@ -57,6 +58,9 @@ private:
   bool readonly_ = false;
   IndexScanner *index_scanner_ = nullptr;
   RecordFileHandler *record_handler_ = nullptr;
+  // 标记需不需要增加 index -> 索引被删除时不需要
+  // TODO 当前实现相当丑陋且不通用
+  bool idx_need_increase_ = true;
 
   RecordPageHandler record_page_handler_;
   Record current_record_;

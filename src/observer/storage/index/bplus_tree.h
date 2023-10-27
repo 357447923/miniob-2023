@@ -650,7 +650,7 @@ public:
   RC open(const char *left_user_key, int left_len, bool left_inclusive, 
           const char *right_user_key, int right_len, bool right_inclusive);
 
-  RC next_entry(RID &rid);
+  RC next_entry(RID& rid, bool idx_need_increase = true);
 
   RC close();
 

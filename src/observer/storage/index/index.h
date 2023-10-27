@@ -103,6 +103,6 @@ public:
    * 遍历元素数据
    * 如果没有更多的元素，返回RECORD_EOF
    */
-  virtual RC next_entry(RID *rid) = 0;
+  virtual RC next_entry(RID* rid, bool idx_need_increase = true) = 0;
   virtual RC destroy() = 0;
 };

@@ -1854,7 +1854,7 @@ bool BplusTreeScanner::touch_end()
   return compare_result > 0;
 }
 
-RC BplusTreeScanner::next_entry(RID &rid)
+RC BplusTreeScanner::next_entry(RID& rid, bool idx_need_increase)
 {
   if (nullptr == current_frame_) {
     return RC::RECORD_EOF;
@@ -1866,7 +1866,9 @@ RC BplusTreeScanner::next_entry(RID &rid)
     return RC::SUCCESS;
   }
 
-  iter_index_++;
+  if (idx_need_increase) {
+      iter_index_++;
+  }
 
   LeafIndexNodeHandler node(tree_handler_.file_header_, current_frame_);
   if (iter_index_ < node.size()) {
