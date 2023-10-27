@@ -176,10 +176,13 @@ const IndexMeta *TableMeta::index(const char *name) const
   return nullptr;
 }
 
-const IndexMeta *TableMeta::find_index_by_field(const char *field) const
-{
+
+const IndexMeta* TableMeta::find_index_by_field(const char* field) const {
+  std::string field_name = field;
+  std::vector<std::string> fields;
+  fields.push_back(field_name);
   for (const IndexMeta &index : indexes_) {
-    if (0 == strcmp(index.field(), field)) {
+    if (fields == *index.fields()) {
       return &index;
     }
   }

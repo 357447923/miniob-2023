@@ -82,11 +82,11 @@ public:
   virtual RC sync() = 0;
 
 protected:
-  RC init(const IndexMeta &index_meta, const FieldMeta &field_meta);
+  RC init(const IndexMeta &index_meta, std::vector<FieldMeta> &field_metas);
 
 protected:
   IndexMeta index_meta_;  ///< 索引的元数据
-  FieldMeta field_meta_;  ///< 当前实现仅考虑一个字段的索引
+  std::vector<FieldMeta> field_metas_;
 };
 
 /**
@@ -103,6 +103,6 @@ public:
    * 遍历元素数据
    * 如果没有更多的元素，返回RECORD_EOF
    */
-  virtual RC next_entry(RID *rid) = 0;
+  virtual RC next_entry(RID* rid, bool idx_need_increase = true) = 0;
   virtual RC destroy() = 0;
 };

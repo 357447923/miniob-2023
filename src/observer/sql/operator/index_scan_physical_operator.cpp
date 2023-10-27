@@ -73,7 +73,8 @@ RC IndexScanPhysicalOperator::next()
   record_page_handler_.cleanup();
 
   bool filter_result = false;
-  while (RC::SUCCESS == (rc = index_scanner_->next_entry(&rid))) {
+  bool idx_need_increase = get_idx_need_increase();
+  while (RC::SUCCESS == (rc = index_scanner_->next_entry(&rid, idx_need_increase))) {
     rc = record_handler_->get_record(record_page_handler_, &rid, readonly_, &current_record_);
     if (rc != RC::SUCCESS) {
       return rc;
@@ -137,6 +138,14 @@ RC IndexScanPhysicalOperator::filter(RowTuple &tuple, bool &result)
 
   result = true;
   return rc;
+}
+
+void IndexScanPhysicalOperator::set_idx_need_increase(bool idx_need_increase) {
+    idx_need_increase_ = idx_need_increase;
+}
+
+const bool IndexScanPhysicalOperator::get_idx_need_increase() {
+    return idx_need_increase_;
 }
 
 std::string IndexScanPhysicalOperator::param() const
