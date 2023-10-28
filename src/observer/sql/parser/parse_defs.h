@@ -168,6 +168,14 @@ struct CalcSqlNode
 
   ~CalcSqlNode();
 };
+/**
+ * @brief 描述一个set子句
+*/
+struct SetClauseSqlNode
+{
+  Value                         value_;                 ///< 更新的值
+  std::string                   attribute_name_;        ///< 更新的字段
+};
 
 /**
  * @brief 描述一个insert语句
@@ -197,9 +205,11 @@ struct DeleteSqlNode
 struct UpdateSqlNode
 {
   std::string                   relation_name;         ///< Relation to update
-  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-  Value                         value;                 ///< 更新的值，仅支持一个字段
+  // std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
+  // Value                         value;                 ///< 更新的值，仅支持一个字段
   std::vector<ConditionSqlNode> conditions;
+  std::vector<SetClauseSqlNode> set_clause_list;
+
 };
 
 /**
@@ -374,6 +384,7 @@ public:
   LoadDataSqlNode           load_data;
   ExplainSqlNode            explain;
   SetVariableSqlNode        set_variable;
+
 
 public:
   ParsedSqlNode();

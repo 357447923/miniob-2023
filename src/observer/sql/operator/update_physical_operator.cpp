@@ -2,19 +2,12 @@
 #include "storage/trx/trx.h"
 #include "storage/record/record.h"
 
-UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, Value& value, const char * field_name) {
+UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Value*> update_map) {
   table_ = table;
-  value_ = value;
-  char *tmp = (char *)malloc(sizeof(char) * (strlen(field_name) + 1));
-  strcpy(tmp, field_name);
-  field_name_ = tmp;
+  update_map_= std::move(update_map);
 }
 
-UpdatePhysicalOperator::~UpdatePhysicalOperator() {
-  if (field_name_ != nullptr) {
-    delete field_name_;
-  }
-}
+UpdatePhysicalOperator::~UpdatePhysicalOperator() = default;
 
 RC UpdatePhysicalOperator::open(Trx *trx) {
   if (children_.empty()) {
@@ -57,13 +50,19 @@ RC UpdatePhysicalOperator::next() {
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record &record = row_tuple->record();
     int index;
-    const FieldMeta *field = table_->table_meta().field(field_name_, index);
-    int offset = field->offset();
-    rc = trx_->update_record(table_, record, offset, index, value_);
-    if (rc != RC::SUCCESS) {
-      LOG_WARN("failed to delete record: %s", strrc(rc));
-      return rc;
+    Value *test_value_ptr = update_map_["id2"];
+    for (const auto& pair : update_map_) {
+      const std::string& field_name = pair.first;
+      Value* value = pair.second; 
+      const FieldMeta *field = table_->table_meta().field(field_name.c_str(), index);
+      int offset = field->offset();
+      rc = trx_->update_record(table_, record, offset, index, *value);
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to delete record: %s", strrc(rc));
+        return rc;
+      }
     }
+
   }
 
   return RC::RECORD_EOF;

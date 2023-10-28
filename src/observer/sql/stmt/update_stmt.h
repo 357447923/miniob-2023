@@ -28,23 +28,23 @@ class UpdateStmt : public Stmt
 {
 public:
   UpdateStmt() = default;
-  UpdateStmt(Table *table, const Value *values, int value_amount, FilterStmt *filter_stmt, const std::string& attribute_name);
+  UpdateStmt(Table *table, int value_amount, FilterStmt *filter_stmt, std::unordered_map <std::string, Value*>&);
 
   StmtType type() const override {
     return StmtType::UPDATE;
   }
 
 public:
-  static RC create(Db *db, const UpdateSqlNode &update_sql, Stmt *&stmt);
+  static RC create(Db *db, UpdateSqlNode &update_sql, Stmt *&stmt);
 
 public:
   Table *table() const
   {
     return table_;
   }
-  const Value *values() const
+  const std::unordered_map <std::string, Value*> update_map() const
   {
-    return values_;
+    return update_map_;
   }
   int value_amount() const
   {
@@ -53,14 +53,15 @@ public:
   FilterStmt *filter_stmt() const {
     return filter_stmt_;
   }
-  const std::string& attribute_name() const {
-    return attribute_name_;
-  }
+  // const std::string& attribute_name() const {
+  //   return attribute_name_;
+  // }
 
 private:
   Table *table_ = nullptr;
-  const Value *values_ = nullptr;
+  // const Value *values_ = nullptr;
   int value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
-  std::string attribute_name_;
+  // std::string attribute_name_;
+  std::unordered_map <std::string, Value*> update_map_ ;
 };
