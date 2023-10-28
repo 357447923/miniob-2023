@@ -176,6 +176,29 @@ RC ComparisonExpr::try_get_value(Value &cell) const
   return RC::INVALID_ARGUMENT;
 }
 
+static inline bool have_more_value_after_get(const Tuple &tuple, const SubQueryExpr *sub_query_expr) {
+  Value tmp;
+  return sub_query_expr->get_value(tuple, tmp) == RC::RECORD_EOF;
+}
+
+static RC get_value_from_sub_query(const Tuple &tuple, const SubQueryExpr *sub_query, Value &value) {
+  assert(sub_query != nullptr);
+  assert(((Expression *)sub_query)->type() == ExprType::SUBQUERY);
+  sub_query->open_sub_query();
+  RC rc = sub_query->get_value(tuple, value);
+  if (rc != RC::SUCCESS) {
+    sub_query->close_sub_query();
+    return rc;
+  }
+  if (have_more_value_after_get(tuple, sub_query)) {
+    sub_query->close_sub_query();
+    LOG_ERROR("OP in SubQuery only have a record, but can get more than one record.");
+    return RC::INTERNAL;
+  }
+  sub_query->close_sub_query();
+  return RC::SUCCESS;
+}
+
 RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
 {
   Value left_value;
@@ -251,59 +274,47 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
   // 处理右边是子查询的情况
   // TODO 把这两次一样的操作合并成一个函数
+  // TODO fix bug：maybe both of left and right are sub_query
   if (right_->type() == ExprType::SUBQUERY) {
-    auto sub_query_expr = (const SubQueryExpr *)right_.get();
-    sub_query_expr->open_sub_query();
-    RC rc = sub_query_expr->get_value(tuple, right_value);
+    auto sub_query = (const SubQueryExpr *)right_.get();
+    RC rc = get_value_from_sub_query(tuple, sub_query, right_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
-    Value tmp;
-    rc = sub_query_expr->get_value(tuple, tmp);
-    if (rc != RC::RECORD_EOF) {
-      LOG_ERROR("OP IN SubQuery only have a record, but can get 2 record.");
-      return RC::INTERNAL;
+    if (left_->type() == ExprType::SUBQUERY) {
+      sub_query = (const SubQueryExpr *)left_.get();
+      rc = get_value_from_sub_query(tuple, sub_query, left_value);
+    }else {
+      rc = left_->get_value(tuple, left_value);
     }
-    rc = left_->get_value(tuple, left_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
-    bool res = false;
-    rc = compare_value(left_value, right_value, res);
-    if (rc == RC::SUCCESS) {
-      value.set_boolean(res);
-    }
-    sub_query_expr->close_sub_query();
-    return rc;
-  }
-  if (left_->type() == ExprType::SUBQUERY) {
-    auto sub_query_expr = (const SubQueryExpr *)left_.get();
-    sub_query_expr->open_sub_query();
-    RC rc = sub_query_expr->get_value(tuple, left_value);
+  }else {
+    RC rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
-    Value tmp;
-    rc = sub_query_expr->get_value(tuple, tmp);
-    if (rc != RC::RECORD_EOF) {
-      LOG_ERROR("OP IN SubQuery only have a record, but can get 2 record.");
-      return RC::INTERNAL;
+    if (left_->type() == ExprType::SUBQUERY) {
+      auto subquery = (const SubQueryExpr *)left_.get();
+      rc = get_value_from_sub_query(tuple, subquery, left_value);
+    }else {
+      rc = left_->get_value(tuple, left_value);
     }
-    rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
       return rc;
     }
-    bool res = false;
-    rc = compare_value(left_value, right_value, res);
-    if (rc == RC::SUCCESS) {
-      value.set_boolean(res);
-    }
-    sub_query_expr->close_sub_query();
-    return rc;
   }
 
+  bool res = false;
+  RC rc = compare_value(left_value, right_value, res);
+  if (rc == RC::SUCCESS) {
+    value.set_boolean(res);
+  }
+  return rc;
 
-  RC rc = left_->get_value(tuple, left_value);
+  // 不存在子查询的普通比较
+  rc = left_->get_value(tuple, left_value);
   if (rc != RC::SUCCESS) {
     LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
     return rc;
