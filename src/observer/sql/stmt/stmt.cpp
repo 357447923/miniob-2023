@@ -52,7 +52,7 @@ RC Stmt::create_stmt(Db *db, ParsedSqlNode &sql_node, Stmt *&stmt)
       const std::unordered_map<std::string, Table *> parent_table_map;
       return SelectStmt::create(db, sql_node.selection, parent_tables, parent_table_map, stmt);
     }
-
+    
     case SCF_EXPLAIN: {
       return ExplainStmt::create(db, sql_node.explain, stmt);
     }

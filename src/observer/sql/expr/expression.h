@@ -426,6 +426,8 @@ public:
 
   static RC find_field_need(const std::unordered_map<std::string, Table *> &table_map, FuncExpr *func_expr);
 
+  static bool check_if_deps_field(FuncExpr *func_expr);
+
 private:
   RC get_func_length_value(const Tuple &tuple, Value &value) const;
 

@@ -996,3 +996,15 @@ RC FuncExpr::find_field_need(const std::unordered_map<std::string, Table *> &tab
   }
   return RC::SUCCESS;
 }
+
+bool FuncExpr::check_if_deps_field(FuncExpr *func_expr) {
+  assert(func_expr != nullptr);
+  const std::vector<Expression *> &exprs = func_expr->get_params();
+  Value tmp;
+  for (auto expr : exprs) {
+    if (RC::SUCCESS != expr->try_get_value(tmp)) {
+      return true;
+    }
+  }
+  return false;
+}

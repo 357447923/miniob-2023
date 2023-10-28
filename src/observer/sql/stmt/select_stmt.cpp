@@ -70,7 +70,22 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
         LOG_WARN("invalid argument. db is null");
         return RC::INVALID_ARGUMENT;
     }
-
+    if (select_sql.relations.empty()) {
+        if (select_sql.attributes.empty()) {
+            return RC::SQL_SYNTAX;
+        }
+        std::vector<Expression*> query_expressions;
+        for (auto &attr : select_sql.attributes) {
+            if (attr.expression == nullptr || attr.expression->type() != ExprType::FUNC) {
+                return RC::SQL_SYNTAX;
+            }
+            query_expressions.push_back(attr.expression);
+        }
+        SelectStmt *select_stmt = new SelectStmt();
+        select_stmt->query_expressions_.swap(query_expressions);
+        stmt = select_stmt;
+        return RC::SUCCESS;
+    }
     // collect tables in `from` statement
     std::vector<Table*> tables;
     std::unordered_map<std::string, Table*> table_map;

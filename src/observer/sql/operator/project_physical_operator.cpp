@@ -36,6 +36,19 @@ RC ProjectPhysicalOperator::open(Trx *trx)
 RC ProjectPhysicalOperator::next()
 {
   if (children_.empty()) {
+    if (first_enter_) {
+      const std::vector<TupleCellSpec *> &speces = tuple_.speces();
+      first_enter_ = false;
+      if (!speces.empty()) {
+        for (auto &spec : speces) {
+          Expression *expr = spec->expression();
+          if (expr->type() != ExprType::FUNC || FuncExpr::check_if_deps_field((FuncExpr *)expr)) {
+            return RC::RECORD_EOF;
+          }
+        }
+        return RC::SUCCESS;
+      }
+    }
     return RC::RECORD_EOF;
   }
   return children_[0]->next();
@@ -45,11 +58,17 @@ RC ProjectPhysicalOperator::close()
 {
   if (!children_.empty()) {
     children_[0]->close();
+  }else if (!first_enter_){
+    first_leave_ = false;
   }
   return RC::SUCCESS;
 }
 Tuple *ProjectPhysicalOperator::current_tuple()
 {
+  if (children_.empty() && !first_enter_ && first_leave_) {
+    tuple_.set_tuple(&empty_tuple_);
+    return &tuple_;
+  }
   tuple_.set_tuple(children_[0]->current_tuple());
   return &tuple_;
 }

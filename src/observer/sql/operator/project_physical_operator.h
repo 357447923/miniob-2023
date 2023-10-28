@@ -51,4 +51,7 @@ public:
 private:
   // 返回值
   ProjectTuple tuple_;
+  bool first_enter_ = true; // 是否为没有表时的第一次进入投影算子
+  bool first_leave_ = true; // 是否为没有表时的第一次关闭投影算子
+  ValueListTuple empty_tuple_;
 };
