@@ -56,7 +56,12 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
     LOG_WARN("index with name(%s) already exists. table name=%s", create_index.index_name.c_str(), table_name);
     return RC::SCHEMA_INDEX_NAME_REPEAT;
   }
-  IndexType index_type = IndexType::NORMAL_IDX;
+
+  IndexType index_type = stringToIndex(create_index.index_type);
+  if (index_type == IndexType::UNKNOWN)
+  {
+    return RC::INDEX_TYPE_UNKNOWN;
+  }
   stmt = new CreateIndexStmt(table, field_metas, create_index.index_name, index_type);
   return RC::SUCCESS;
 }

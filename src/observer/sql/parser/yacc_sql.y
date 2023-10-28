@@ -332,10 +332,28 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       }
       create_index.attribute_names.push_back($7);
       std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
-      create_index.index_type = "NOMAL_INDEX";
+      create_index.index_type = "NORMAL";
       free($3);
       free($5);
       free($7);
+    }
+    | CREATE ID INDEX ID ON ID LBRACE ID idx_attr_list RBRACE
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
+      CreateIndexSqlNode &create_index = $$->create_index;
+      create_index.index_name = $4;
+      create_index.relation_name = $6;
+      if ($9 != nullptr) {
+        create_index.attribute_names.swap(*$9);
+        delete $9;
+      }
+      create_index.attribute_names.push_back($8);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+      create_index.index_type = $2;
+      free($2);
+      free($4);
+      free($6);
+      free($8);
     }
     ;
 

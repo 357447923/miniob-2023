@@ -750,7 +750,7 @@ yysymbol_name (yysymbol_kind_t yysymbol)
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
 
-#define YYTABLE_NINF (-54)
+#define YYTABLE_NINF (-55)
 
 #define yytable_value_is_error(Yyn) \
   0
@@ -1986,7 +1986,7 @@ yyreduce:
       }
       create_index.attribute_names.push_back((yyvsp[-2].string));
       std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
-      create_index.index_type = "NOMAL_INDEX";
+      create_index.index_type = "NORMAL";
       free((yyvsp[-6].string));
       free((yyvsp[-4].string));
       free((yyvsp[-2].string));
