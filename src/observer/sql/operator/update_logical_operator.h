@@ -28,22 +28,11 @@ public:
         return update_map_;
     }
 
-    // inline Value& value() {
-    //     return value_;
-    // }
 
-    // inline char * field_name() const {
-    //     return field_name_;
-    // }
-    // const Value* find_value_by_field(const FieldMeta& field_meta) {
-    //     return &update_map_->at(field_meta);
-    // }
 
 private:
     Table * table_ = nullptr;
     std::unordered_map<std::string, Value*> update_map_ ;
-    // Value value_;
-    // char * field_name_ = nullptr;
 };
 
 #endif

@@ -53,15 +53,10 @@ public:
   FilterStmt *filter_stmt() const {
     return filter_stmt_;
   }
-  // const std::string& attribute_name() const {
-  //   return attribute_name_;
-  // }
 
 private:
   Table *table_ = nullptr;
-  // const Value *values_ = nullptr;
   int value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
-  // std::string attribute_name_;
   std::unordered_map <std::string, Value*> update_map_ ;
 };

@@ -65,8 +65,6 @@ RC LogicalPlanGenerator::create(Stmt* stmt, unique_ptr<LogicalOperator>& logical
 
         case StmtType::UPDATE: {
             UpdateStmt* update_stmt = static_cast<UpdateStmt*>(stmt);
-            std::unordered_map <std::string, Value*> map = update_stmt->update_map();
-            Value *test_value_ptr = map["t_name"];
             rc = create_plan(update_stmt, logical_operator);
         } break;
 

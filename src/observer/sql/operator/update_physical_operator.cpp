@@ -50,7 +50,6 @@ RC UpdatePhysicalOperator::next() {
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record &record = row_tuple->record();
     int index;
-    // Value *test_value_ptr = update_map_["id2"];
     for (const auto& pair : update_map_) {
       const std::string& field_name = pair.first;
       Value* value = pair.second; 

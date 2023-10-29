@@ -23,8 +23,6 @@ public:
 
 private:
   Table * table_ = nullptr;
-  // Value value_;
-  // const char * field_name_ = nullptr;
   std::unordered_map<std::string, Value*> update_map_ ;
   Trx *trx_ = nullptr;
 };

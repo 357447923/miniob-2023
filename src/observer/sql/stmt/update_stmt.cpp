@@ -70,7 +70,6 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
   const TableMeta &table_meta = table->table_meta();
   std::vector<SetClauseSqlNode> &set_clause_list= update.set_clause_list;
   std::unordered_map <std::string, Value*> update_map;
-  std:: unordered_map <std::string, Value> update_map_test;
   for (SetClauseSqlNode &setClause : set_clause_list)
   {
       const FieldMeta *field_meta = table_meta.field(setClause.attribute_name_.c_str());
@@ -85,7 +84,6 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
         return rc;
       }
       update_map[setClause.attribute_name_.c_str()] = &(setClause.value_);
-      std::cout << update_map[setClause.attribute_name_] << std::endl;
   }
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(update.relation_name, table));
