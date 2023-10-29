@@ -624,21 +624,6 @@ update_stmt:      /*  update 语句的语法解析树*/
       }
       free($2);
     }
-    // | UPDATE ID SET ID EQ '-' value where
-    // {
-    //   $$ = new ParsedSqlNode(SCF_UPDATE);
-    //   modify_2_negative($7);
-    //   $$->update.relation_name = $2;
-    //   $$->update.attribute_name = $4;
-    //   $$->update.value = *$7;
-    //   if ($8 != nullptr) {
-    //     $$->update.conditions.swap(*$8);
-    //     delete $8;
-    //   }
-    //   free($2);
-    //   free($4);
-    // }
-    // ;
 
 set_clause_list: /*set 子句列表*/
     set_clause COMMA set_clause_list
@@ -664,6 +649,13 @@ set_clause: /* 单个set子句*/
       $$ = new SetClauseSqlNode;
       $$->attribute_name_ = $1;
       $$->value_ = *$3;
+    }
+    | ID EQ '-' value
+    {
+      $$ = new SetClauseSqlNode;
+      modify_2_negative($4);
+      $$->attribute_name_ = $1;
+      $$->value_ = *$4;
     }
     ;
 

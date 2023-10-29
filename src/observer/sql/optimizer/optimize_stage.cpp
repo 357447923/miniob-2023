@@ -36,12 +36,12 @@ RC OptimizeStage::handle_request(SQLStageEvent *sql_event)
 {
   unique_ptr<LogicalOperator> logical_operator;
   RC rc = create_logical_plan(sql_event, logical_operator);
-  UpdateLogicalOperator* update_logical_operator_ptr = dynamic_cast<UpdateLogicalOperator*>(logical_operator.get());
-  if(update_logical_operator_ptr!=nullptr) {
-    std::unordered_map <std::string, Value*> map = update_logical_operator_ptr->update_map();
-    Value *test_value_ptr = map["id2"];
-    test_value_ptr = map["id2"];
-  }
+  // UpdateLogicalOperator* update_logical_operator_ptr = dynamic_cast<UpdateLogicalOperator*>(logical_operator.get());
+  // if(update_logical_operator_ptr!=nullptr) {
+  //   std::unordered_map <std::string, Value*> map = update_logical_operator_ptr->update_map();
+  //   Value *test_value_ptr = map["id2"];
+  //   test_value_ptr = map["id2"];
+  // }
   if (rc != RC::SUCCESS) {
     if (rc != RC::UNIMPLENMENT) {
       LOG_WARN("failed to create logical plan. rc=%s", strrc(rc));
