@@ -375,7 +375,6 @@ RC Value::compare(const Value &other) const
     return rc_cmp_res(common::compare_float((void *)&this->num_value_.float_value_, (void *)&other_data));
   } 
   if (this->attr_type_ == NULLS || other.attr_type_ == NULLS) {
-    LOG_WARN("unsupported type");
     return RC::LEFT_CAN_NOT_CMP_TO_ANOTHER;
   }
   RC rc = common::type_cast(const_cast<Value&>(*this), FLOATS);

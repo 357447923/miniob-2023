@@ -272,9 +272,9 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
     value.set_boolean(res);
     return RC::SUCCESS;
   }
+
+  // 普通的比较查询
   // 处理右边是子查询的情况
-  // TODO 把这两次一样的操作合并成一个函数
-  // TODO fix bug：maybe both of left and right are sub_query
   if (right_->type() == ExprType::SUBQUERY) {
     auto sub_query = (const SubQueryExpr *)right_.get();
     RC rc = get_value_from_sub_query(tuple, sub_query, right_value);
@@ -291,6 +291,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
       return rc;
     }
   }else {
+    // 处理右边是非子查询的情况
     RC rc = right_->get_value(tuple, right_value);
     if (rc != RC::SUCCESS) {
       return rc;
@@ -307,32 +308,9 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
 
   bool res = false;
-  RC rc = compare_value(left_value, right_value, res);
+  RC rc = compare_value(left_value, right_value, res);  // 里面要修改NULL的比较逻辑，而不是只写日志
   if (rc == RC::SUCCESS) {
     value.set_boolean(res);
-  }
-  return rc;
-
-  // 不存在子查询的普通比较
-  rc = left_->get_value(tuple, left_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of left expression. rc=%s", strrc(rc));
-    return rc;
-  }
-  rc = right_->get_value(tuple, right_value);
-  if (rc != RC::SUCCESS) {
-    LOG_WARN("failed to get value of right expression. rc=%s", strrc(rc));
-    return rc;
-  }
-
-  rc = compare_value(left_value, right_value, bool_value);
-  if (rc == RC::SUCCESS) {
-    if (!bool_value)
-    {
-      LOG_INFO("filter out value: %d",left_value.get_int());
-    }
-    
-    value.set_boolean(bool_value);
   }
   return rc;
 }
