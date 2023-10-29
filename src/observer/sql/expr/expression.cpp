@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/select_stmt.h"
 #include "sql/operator/project_physical_operator.h"
 #include "sql/operator/project_logical_operator.h"
+#include "common/typecast.h"
 
 using namespace std;
 
@@ -862,6 +863,11 @@ RC FuncExpr::get_func_data_format_value(const Tuple &tuple, Value &value) const 
   Value date_expr_value;
   Value format_expr_value;
   date_expr->get_value(tuple, date_expr_value);
+  if (date_expr_value.attr_type() == CHARS) {
+    if (common::type_cast(date_expr_value, DATES) != RC::SUCCESS) {
+      return RC::INTERNAL;
+    }
+  }
   format_expr->get_value(tuple, format_expr_value);
   if (date_expr_value.attr_type() != DATES
       || format_expr_value.attr_type() != CHARS) {
@@ -932,7 +938,7 @@ RC FuncExpr::get_func_data_format_value(const Tuple &tuple, Value &value) const 
               }
               default: {
                 result_date_str += tmp;
-                result_date_str + "th";
+                result_date_str += "th";
                 break;
               }
             }

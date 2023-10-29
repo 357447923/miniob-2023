@@ -42,7 +42,7 @@ RC ProjectPhysicalOperator::next()
       if (!speces.empty()) {
         for (auto &spec : speces) {
           Expression *expr = spec->expression();
-          if (expr->type() != ExprType::FUNC || FuncExpr::check_if_deps_field((FuncExpr *)expr)) {
+          if (expr == nullptr || expr->type() != ExprType::FUNC || FuncExpr::check_if_deps_field((FuncExpr *)expr)) {
             return RC::RECORD_EOF;
           }
         }

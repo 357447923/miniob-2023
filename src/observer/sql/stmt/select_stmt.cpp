@@ -64,6 +64,33 @@ static void clean_expr_when_fail(std::vector<Expression*>& exprs) {
     exprs.clear();
 }
 
+static bool handle_expr_when_mutiple_table(Expression *expr, const std::unordered_map<std::string, Table *> &table_map, 
+        std::vector<Expression *> &query_expressions) {
+    switch (expr->type()) {
+        case ExprType::ARITHMETIC: {
+            ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)expr;
+            ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
+            query_expressions.push_back(expr);
+            return true;
+        }
+
+        case ExprType::FUNC: {
+            FuncExpr *func_expr = (FuncExpr *)expr;
+            RC rc = FuncExpr::find_field_need(table_map, func_expr);
+            if (rc != RC::SUCCESS) {
+                return false;
+            }
+            query_expressions.push_back(expr);
+            return true;
+        }
+
+        default: {
+            LOG_ERROR("this expression can't handle by this handler");
+            return false;
+        }
+    }
+}
+
 RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector<Table *> &parent_tables,
         const std::unordered_map<std::string, Table *> &parent_table_map, Stmt*& stmt) {
     if (nullptr == db) {
@@ -124,7 +151,6 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
     }
 
     // collect query fields in `select` statement
-    // TODO 目前只处理了单表且不带表名的情况
     std::vector<Expression*> query_expressions;
     bool contains_aggr_func = false;
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
@@ -241,19 +267,17 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
                     LOG_ERROR("select schema should follow 'table.field' in miniob");
                     return RC::SQL_SYNTAX;
                 }
-                if (relation_attr.expression->type() != ExprType::ARITHMETIC) {
+                // 没写表名的时候也可能是select 1+1 这种情况
+                if (!handle_expr_when_mutiple_table(relation_attr.expression, table_map, query_expressions)) {
                     LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
                     clean_expr_when_fail(query_expressions);
                     return RC::SCHEMA_FIELD_MISSING;
                 }
-                // 没写表名的时候也可能是select 1+1 这种情况
-                ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)(relation_attr.expression);
-                ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
-                arithmetic_expr->set_alias(alias);
-                if (arithmetic_expr->contains_aggr()) {
+                relation_attr.expression->set_alias(alias);
+                if (relation_attr.expression->type() == ExprType::ARITHMETIC 
+                        && static_cast<ArithmeticExpr *>(relation_attr.expression)->contains_aggr()) {
                     contains_aggr_func = true;
                 }
-                query_expressions.emplace_back(relation_attr.expression);
                 continue;
             }
 
