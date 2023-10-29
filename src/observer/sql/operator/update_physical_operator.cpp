@@ -1,6 +1,7 @@
 #include "sql/operator/update_physical_operator.h"
 #include "storage/trx/trx.h"
 #include "storage/record/record.h"
+#include "storage/index/index.h"
 
 UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Value*> update_map) {
   table_ = table;
@@ -39,7 +40,21 @@ RC UpdatePhysicalOperator::next() {
     return RC::RECORD_EOF;
   }
 
+  
+
   PhysicalOperator *child = children_[0].get();
+  int update_record_num = 0;
+
+  std::vector<Index *> indexs =  table_->indexs();
+  for (Index* indexPtr : indexs) {
+      if (indexPtr->index_meta().indexType() == IndexType::UNIQUE_IDX)
+      {
+        if (RC::SUCCESS == (rc = child->next()))
+        {
+          update_record_num++;
+        }
+      }
+  }
   while (RC::SUCCESS == (rc = child->next())) {
     Tuple *tuple = child->current_tuple();
     if (nullptr == tuple) {

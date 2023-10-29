@@ -565,6 +565,11 @@ Index *Table::find_index_by_field(const char *field_name) const
   return nullptr;
 }
 
+std::vector<Index *> Table::indexs() const{
+  return indexes_;
+}
+
+
 RC Table::sync()
 {
   RC rc = RC::SUCCESS;
