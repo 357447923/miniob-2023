@@ -105,19 +105,27 @@ RC PhysicalPlanGenerator::create_subquery(Expression *expr) {
     return RC::SUCCESS;
   }
   SubQueryExpr *subquery_expr = (SubQueryExpr *)expr;
+  if (subquery_expr->sub_query_operator()) {
+    return RC::SUCCESS;
+  }
   FilterStmt *sub_filter_stmt = subquery_expr->select_stmt()->filter_stmt();
   if (sub_filter_stmt) {
     const std::vector<FilterUnit *> &filter_units = sub_filter_stmt->filter_units();
+    RC rc = RC::SUCCESS;
     for (auto &unit : filter_units) {
       const FilterObj &left = unit->left();
-      RC rc = create_subquery(left.expression);
-      if (rc != RC::SUCCESS) {
-        return rc;
+      if (left.is_attr) {
+        rc = create_subquery(left.expression);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
       }
       const FilterObj &right = unit->right();
-      rc = create_subquery(right.expression);
-      if (rc != RC::SUCCESS) {
-        return rc;
+      if (right.is_attr) {
+        rc = create_subquery(right.expression);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
       }
     }
   }
@@ -240,6 +248,27 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
   return RC::SUCCESS;
 }
 
+RC PhysicalPlanGenerator::create_child_subquery_for_comparison(ComparisonExpr *expr) {
+  RC rc = RC::SUCCESS;
+  std::unique_ptr<Expression> &left_sub_query = expr->left();
+  if (left_sub_query->type() == ExprType::SUBQUERY) {
+    rc = create_subquery(left_sub_query);
+  }
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("create sub query physical operator error");
+    return rc;
+  }
+  std::unique_ptr<Expression> &right_sub_query = expr->right();
+  if (right_sub_query->type() == ExprType::SUBQUERY) {
+    rc = create_subquery(right_sub_query);
+  }
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("create sub query physical operator error");
+    return rc;
+  }
+  return rc;
+}
+
 RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, unique_ptr<PhysicalOperator> &oper)
 {
   vector<unique_ptr<LogicalOperator>> &children_opers = pred_oper.children();
@@ -260,26 +289,17 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   unique_ptr<Expression> expression = std::move(expressions.front());
   if (expression->type() == ExprType::COMPARISON) {
     ComparisonExpr *expr = (ComparisonExpr *)expression.get();
-    std::unique_ptr<Expression> &left_sub_query = expr->left();
-    if (left_sub_query->type() == ExprType::SUBQUERY) {
-      rc = create_subquery(left_sub_query);
-    }
+    rc = create_child_subquery_for_comparison(expr);
     if (rc != RC::SUCCESS) {
-      LOG_ERROR("create sub query physical operator error");
-      return rc;
-    }
-    std::unique_ptr<Expression> &right_sub_query = expr->right();
-    if (right_sub_query->type() == ExprType::SUBQUERY) {
-      rc = create_subquery(right_sub_query);
-    }
-    if (rc != RC::SUCCESS) {
-      LOG_ERROR("create sub query physical operator error");
       return rc;
     }
   }else if (expression->type() == ExprType::CONJUNCTION) {
+    // 似乎对于联结表达式来说，子表达式永远都是比较表达式
+    // 下面的断言用来证明这个猜想
     ConjunctionExpr *expr = (ConjunctionExpr *)expression.get();
     for (auto &expression : expr->children()) {
-      rc = create_subquery(expression);
+      assert(expression->type() == ExprType::COMPARISON);
+      rc = create_child_subquery_for_comparison((ComparisonExpr *)expression.get());
       if (rc != RC::SUCCESS) {
         LOG_ERROR("create sub query physical operator error");
         return rc;

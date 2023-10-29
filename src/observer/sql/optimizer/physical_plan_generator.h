@@ -49,6 +49,7 @@ public:
 private:
   RC create_subquery(std::unique_ptr<Expression> &expr);
   RC create_subquery(Expression *expr);
+  RC create_child_subquery_for_comparison(ComparisonExpr *expr);
   RC create_plan(TableGetLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_plan(PredicateLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);
   RC create_plan(ProjectLogicalOperator &logical_oper, std::unique_ptr<PhysicalOperator> &oper);

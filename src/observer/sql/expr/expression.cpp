@@ -178,7 +178,7 @@ RC ComparisonExpr::try_get_value(Value &cell) const
 
 static inline bool have_more_value_after_get(const Tuple &tuple, const SubQueryExpr *sub_query_expr) {
   Value tmp;
-  return sub_query_expr->get_value(tuple, tmp) == RC::RECORD_EOF;
+  return sub_query_expr->get_value(tuple, tmp) != RC::RECORD_EOF;
 }
 
 static RC get_value_from_sub_query(const Tuple &tuple, const SubQueryExpr *sub_query, Value &value) {
