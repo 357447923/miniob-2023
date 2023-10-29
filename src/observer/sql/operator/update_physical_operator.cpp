@@ -39,22 +39,7 @@ RC UpdatePhysicalOperator::next() {
   if (children_.empty()) {
     return RC::RECORD_EOF;
   }
-
-  
-
   PhysicalOperator *child = children_[0].get();
-  int update_record_num = 0;
-
-  std::vector<Index *> indexs =  table_->indexs();
-  for (Index* indexPtr : indexs) {
-      if (indexPtr->index_meta().indexType() == IndexType::UNIQUE_IDX)
-      {
-        if (RC::SUCCESS == (rc = child->next()))
-        {
-          update_record_num++;
-        }
-      }
-  }
   while (RC::SUCCESS == (rc = child->next())) {
     Tuple *tuple = child->current_tuple();
     if (nullptr == tuple) {
@@ -72,7 +57,7 @@ RC UpdatePhysicalOperator::next() {
       int offset = field->offset();
       rc = trx_->update_record(table_, record, offset, index, *value);
       if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to delete record: %s", strrc(rc));
+        LOG_WARN("failed to update record: %s", strrc(rc));
         return rc;
       }
     }
