@@ -64,13 +64,55 @@ static void clean_expr_when_fail(std::vector<Expression*>& exprs) {
     exprs.clear();
 }
 
+static bool handle_expr_when_mutiple_table(Expression *expr, const std::unordered_map<std::string, Table *> &table_map, 
+        std::vector<Expression *> &query_expressions) {
+    switch (expr->type()) {
+        case ExprType::ARITHMETIC: {
+            ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)expr;
+            ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
+            query_expressions.push_back(expr);
+            return true;
+        }
+
+        case ExprType::FUNC: {
+            FuncExpr *func_expr = (FuncExpr *)expr;
+            RC rc = FuncExpr::find_field_need(table_map, func_expr);
+            if (rc != RC::SUCCESS) {
+                return false;
+            }
+            query_expressions.push_back(expr);
+            return true;
+        }
+
+        default: {
+            LOG_ERROR("this expression can't handle by this handler");
+            return false;
+        }
+    }
+}
+
 RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector<Table *> &parent_tables,
         const std::unordered_map<std::string, Table *> &parent_table_map, Stmt*& stmt) {
     if (nullptr == db) {
         LOG_WARN("invalid argument. db is null");
         return RC::INVALID_ARGUMENT;
     }
-
+    if (select_sql.relations.empty()) {
+        if (select_sql.attributes.empty()) {
+            return RC::SQL_SYNTAX;
+        }
+        std::vector<Expression*> query_expressions;
+        for (auto &attr : select_sql.attributes) {
+            if (attr.expression == nullptr || attr.expression->type() != ExprType::FUNC) {
+                return RC::SQL_SYNTAX;
+            }
+            query_expressions.push_back(attr.expression);
+        }
+        SelectStmt *select_stmt = new SelectStmt();
+        select_stmt->query_expressions_.swap(query_expressions);
+        stmt = select_stmt;
+        return RC::SUCCESS;
+    }
     // collect tables in `from` statement
     std::vector<Table*> tables;
     std::unordered_map<std::string, Table*> table_map;
@@ -109,7 +151,6 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
     }
 
     // collect query fields in `select` statement
-    // TODO 目前只处理了单表且不带表名的情况
     std::vector<Expression*> query_expressions;
     bool contains_aggr_func = false;
     for (int i = static_cast<int>(select_sql.attributes.size()) - 1; i >= 0; i--) {
@@ -144,13 +185,27 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
                 table_name = relation_attr.relation_name.c_str();
                 field_name = relation_attr.attribute_name.c_str();
             } else {
-                // 这里仅需考虑算数表达式(目前还没有除了表达式和字段之外的语法)
-                ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)relation_attr.expression;
-                ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
-                if (arithmetic_expr->contains_aggr()) {
-                    contains_aggr_func = true;
+                switch(relation_attr.expression->type()) {
+                    case ExprType::ARITHMETIC: {
+                        ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)relation_attr.expression;
+                        ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
+                        if (arithmetic_expr->contains_aggr()) {
+                            contains_aggr_func = true;
+                        }
+                        query_expressions.emplace_back(relation_attr.expression);
+                    }break;
+                    case ExprType::FUNC: {
+                        FuncExpr *func_expr = (FuncExpr *)relation_attr.expression;
+                        RC rc = FuncExpr::find_field_need(table_map, func_expr);
+                        if (rc != RC::SUCCESS) {
+                            return rc;
+                        }
+                        query_expressions.emplace_back(relation_attr.expression);
+                    }break;
+                    default: {
+                        LOG_ERROR("file: %s, line: %d undefine", __FILE__, __LINE__);
+                    }break;
                 }
-                query_expressions.emplace_back(relation_attr.expression);
                 continue;
             }
 
@@ -212,19 +267,17 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
                     LOG_ERROR("select schema should follow 'table.field' in miniob");
                     return RC::SQL_SYNTAX;
                 }
-                if (relation_attr.expression->type() != ExprType::ARITHMETIC) {
+                // 没写表名的时候也可能是select 1+1 这种情况
+                if (!handle_expr_when_mutiple_table(relation_attr.expression, table_map, query_expressions)) {
                     LOG_WARN("invalid. I do not know the attr's table. attr=%s", relation_attr.attribute_name.c_str());
                     clean_expr_when_fail(query_expressions);
                     return RC::SCHEMA_FIELD_MISSING;
                 }
-                // 没写表名的时候也可能是select 1+1 这种情况
-                ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)(relation_attr.expression);
-                ArithmeticExpr::find_field_need(table_map, arithmetic_expr);
-                arithmetic_expr->set_alias(alias);
-                if (arithmetic_expr->contains_aggr()) {
+                relation_attr.expression->set_alias(alias);
+                if (relation_attr.expression->type() == ExprType::ARITHMETIC 
+                        && static_cast<ArithmeticExpr *>(relation_attr.expression)->contains_aggr()) {
                     contains_aggr_func = true;
                 }
-                query_expressions.emplace_back(relation_attr.expression);
                 continue;
             }
 
@@ -232,17 +285,32 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
             const FieldMeta* field_meta = nullptr;
 
             if (relation_attr.expression != nullptr) {
-                if (relation_attr.expression->type() == ExprType::ARITHMETIC) {
-                    // 填充算术表达式中的字段
-                    ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)relation_attr.expression;
-                    ArithmeticExpr::find_field_need(table, arithmetic_expr);
-                    arithmetic_expr->set_alias(alias);
-                    if (arithmetic_expr->contains_aggr()) {
-                        contains_aggr_func = true;
+                switch (relation_attr.expression->type()) {
+                    case ExprType::ARITHMETIC: {
+                        // 填充算术表达式中的字段
+                        ArithmeticExpr* arithmetic_expr = (ArithmeticExpr*)relation_attr.expression;
+                        ArithmeticExpr::find_field_need(table, arithmetic_expr);
+                        arithmetic_expr->set_alias(alias);
+                        if (arithmetic_expr->contains_aggr()) {
+                            contains_aggr_func = true;
+                        }
+                        query_expressions.emplace_back(arithmetic_expr);
+                    }break;
+                    case ExprType::FUNC: {
+                        FuncExpr *func_expr = (FuncExpr *)relation_attr.expression;
+                        RC rc = FuncExpr::find_field_need(table, func_expr);
+                        if (rc != RC::SUCCESS) {
+                            return rc;
+                        }
+                        func_expr->set_alias(alias);
+                        query_expressions.emplace_back(func_expr);
+                    }break;
+
+                    default: {
+                        LOG_ERROR("cannot handle this expression, type: %d", relation_attr.expression->type());
+                        return RC::UNIMPLENMENT;
                     }
-                    query_expressions.emplace_back(relation_attr.expression);
                 }
-                // 其他的类型暂时不处理，因为目前relation_attr的expression属性有值的情况有且仅有其为算数表达式
                 continue;
             }
             if (relation_attr.type == FUNC_NONE) {

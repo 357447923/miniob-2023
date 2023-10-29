@@ -123,6 +123,9 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         AVG
         COUNT
         SUM
+        LENGTH
+        ROUND
+        DATE_FORMAT
         EXISTS
         IN
         EQ
@@ -141,6 +144,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   OrderSqlNode *                    order_condition;
   Value *                           value;
   enum CompOp                       comp;
+  enum FuncType                     func;
   enum AggFuncType                  agg_func;
   RelAttrSqlNode *                  rel_attr;
   std::vector<AttrInfoSqlNode> *    attr_infos;
@@ -153,7 +157,6 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   std::vector<OrderSqlNode> *       order_condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
-  std::vector<RelAttrSqlNode> *     func_attr_list;
   RelationAndConditionTempList*     relationAndConditionTempList;
   std::vector<std::string> *        index_attr_list;
   char *                            string;
@@ -174,6 +177,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <value>               value
 %type <number>              number
 %type <comp>                comp_op
+%type <func>                func
 %type <agg_func>            agg_func
 %type <rel_attr>            rel_attr
 %type <string>              alias
@@ -196,6 +200,8 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
 %type <expression_list>     expression_list
+%type <rel_attr_list>       simple_func_list
+%type <rel_attr>            simple_func_item
 %type <relationAndConditionTempList>       rel_condition_list
 %type <index_attr_list>     idx_attr_list
 %type <sql_node>            calc_stmt
@@ -608,6 +614,8 @@ update_stmt:      /*  update 语句的语法解析树*/
       free($4);
     }
     ;
+
+
 select_stmt:        /*  select 语句的语法解析树*/
     SELECT select_attr FROM ID alias rel_condition_list where group order having
     {
@@ -647,6 +655,20 @@ select_stmt:        /*  select 语句的语法解析树*/
       }
       free($4);
     }
+    | SELECT simple_func_item alias simple_func_list %prec UMINUS {
+      $$ = new ParsedSqlNode(SCF_SELECT);
+      $2->alias.reset($3);
+      $2->expression->set_alias($3);
+      if ($4 != nullptr) {
+        $4->push_back(*$2);
+        std::reverse($4->begin(), $4->end());
+        $$->selection.attributes.swap(*$4);
+        delete $4;
+      }else {
+        $$->selection.attributes.push_back(*$2);
+      }
+      delete $2;
+    }
 
     ;
 calc_stmt:
@@ -659,6 +681,78 @@ calc_stmt:
     }
     ;
 
+simple_func_item:
+  func LBRACE value RBRACE {
+    // 这里的ValueExpr找不到合适的地方释放
+    ValueExpr *value_expr = new ValueExpr(std::move(*$3));
+    value_expr->set_name(value_expr->get_value().to_string());
+    FuncExpr *expr = new FuncExpr($1, 1, value_expr, nullptr);
+    $$ = new RelAttrSqlNode;
+    $$->expression = expr;
+    $$->func_type = $1;
+    std::string name;
+    switch ($1) {
+      case FUNC_LENGTH: {
+        name += "LENGTH(";
+      }break;
+      case FUNC_ROUND: {
+        name += "ROUND(";
+      }break;
+      case FUNC_DATE_FORMAT: {
+        name += "DATE_FORMAT(";
+      }break;
+    }
+    name += value_expr->name();
+    name += ")";
+    expr->set_name(name);
+    delete $3;
+  }
+  | func LBRACE value COMMA value RBRACE {
+    auto first = new ValueExpr(std::move(*$3));
+    first->set_name(first->get_value().to_string());
+    auto second = new ValueExpr(std::move(*$5));
+    second->set_name(second->get_value().to_string());
+    FuncExpr *expr = new FuncExpr($1, 2, first, second);
+    $$ = new RelAttrSqlNode;
+    $$->expression = expr;
+    $$->func_type = $1;
+    std::string name;
+    switch ($1) {
+      case FUNC_LENGTH: {
+        name += "LENGTH(";
+      }break;
+      case FUNC_ROUND: {
+        name += "ROUND(";
+      }break;
+      case FUNC_DATE_FORMAT: {
+        name += "DATE_FORMAT(";
+      }break;
+    }
+    name += first->name();
+    name += ",";
+    name += second->name();
+    name += ")";
+    expr->set_name(name);
+    delete $3;
+  }
+  ;
+
+simple_func_list: 
+  {
+    $$ = nullptr;
+  }
+  | COMMA simple_func_item alias simple_func_list {
+    if ($4 != nullptr) {
+      $$ = $4;
+    }else {
+      $$ = new std::vector<RelAttrSqlNode>;
+    }
+    $2->alias.reset($3);
+    $2->expression->set_alias($3);
+    $$->push_back(*$2);
+    delete $2;
+  }
+  ;
 expression_list:
     expression
     {
@@ -733,6 +827,44 @@ expression:
       ValueExpr *expr = new ValueExpr(Value($3));
       expr->set_name(std::to_string($3));
       $$ = new AggrFuncExpr($1, expr);
+    }
+    | func LBRACE expression RBRACE {
+      $$ = new FuncExpr($1, 1, $3, nullptr);
+      std::string name;
+      switch ($1) {
+        case FUNC_LENGTH: {
+          name += "LENGTH(";
+        }break;
+        case FUNC_ROUND: {
+          name += "ROUND(";
+        }break;
+        case FUNC_DATE_FORMAT: {
+          name += "DATE_FORMAT(";
+        }break;
+      }
+      name += $3->name();
+      name += ")";
+      $$->set_name(name);
+    }
+    | func LBRACE expression COMMA expression RBRACE {
+      $$ = new FuncExpr($1, 2, $3, $5);
+      std::string name;
+      switch ($1) {
+        case FUNC_LENGTH: {
+          name += "LENGTH(";
+        }break;
+        case FUNC_ROUND: {
+          name += "ROUND(";
+        }break;
+        case FUNC_DATE_FORMAT: {
+          name += "DATE_FORMAT(";
+        }break;
+      }
+      name += $3->name();
+      name += ", ";
+      name += $5->name();
+      name += ")";
+      $$->set_name(name);
     }
     ;
 
@@ -864,6 +996,8 @@ rel_attr:
       delete $3;
     }
     ;
+
+
 
 attr_list:
     /* empty */
@@ -1017,6 +1151,7 @@ condition:
       delete $1;
       delete $3;
     }
+    
     ;
 
 group:
@@ -1141,6 +1276,11 @@ agg_func:
     | COUNT { $$ = FUNC_COUNT; }
     | AVG { $$ = FUNC_AVG; }
     | SUM { $$ = FUNC_SUM; }
+
+func:
+      LENGTH { $$ = FUNC_LENGTH; }
+    | ROUND { $$ = FUNC_ROUND; }
+    | DATE_FORMAT { $$ = FUNC_DATE_FORMAT; }
 
 comp_op:
       EQ { $$ = EQUAL_TO; }

@@ -25,6 +25,16 @@ public:
   TupleCellSpec(const char *table_name, const char *field_name, const char *alias, AggFuncType type = AggFuncType::FUNC_NONE);
   TupleCellSpec(const char *alias, AggFuncType type = AggFuncType::FUNC_NONE);
   TupleCellSpec(const char *field_name, const char *alias, AggFuncType type = AggFuncType::FUNC_NONE);
+  TupleCellSpec(FuncType func_type) {
+    func_type_ = func_type;
+  }
+  TupleCellSpec(FuncType func_type, Expression *expr, const char *alias = nullptr) {
+    func_type_ = func_type;
+    expression_ = expr;
+    if (alias) {
+      alias_ = alias;
+    }
+  }
 
   const char *table_name() const
   {
@@ -71,7 +81,8 @@ public:
   }
 
 private:
-  AggFuncType aggfunc_type_;
+  AggFuncType aggfunc_type_ = FUNC_NONE;
+  FuncType func_type_ = NO_FUNC;
   std::string table_name_;
   std::string field_name_;
   Expression *expression_ = nullptr;

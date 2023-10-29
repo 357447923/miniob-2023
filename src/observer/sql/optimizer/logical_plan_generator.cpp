@@ -91,6 +91,18 @@ RC LogicalPlanGenerator::create_plan(
 
     const std::vector<Table*>& tables = select_stmt->tables();
     const std::vector<Expression*>& expressions = select_stmt->query_expressions();
+    if (tables.empty()) {
+        // check all expression are FuncExpr when tables is empty
+        for (auto &expr : expressions) {
+            if (expr->type() != ExprType::FUNC) {
+                LOG_ERROR("expression is not funcExpr when tables is empty");
+                return RC::INTERNAL;
+            }
+        }
+        unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(&expressions));
+        logical_operator = std::move(project_oper);
+        return RC::SUCCESS;
+    }
     int index = -1;
     for (Table* table : tables) {
         std::vector<Field> fields;
@@ -243,37 +255,6 @@ RC LogicalPlanGenerator::create_plan(
     // 投影算子
     unique_ptr<LogicalOperator> project_oper(new ProjectLogicalOperator(&expressions));
     project_oper->add_child(std::move(*top_op));
-    // top_op = &project_oper;
-    /*if (predicate_oper) {
-      if (table_oper) {
-        predicate_oper->add_child(std::move(table_oper));
-      }
-      if (groupby_oper) {
-        if (sorted_for_groupby) {
-          sorted_for_groupby->add_child(std::move(predicate_oper));
-          groupby_oper->add_child(std::move(sorted_for_groupby));
-        }else {
-          groupby_oper->add_child(std::move(predicate_oper));
-        }
-        project_oper->add_child(std::move(groupby_oper));
-      }else {
-        project_oper->add_child(std::move(predicate_oper));
-      }
-    } else {
-      if (table_oper) {
-        if (groupby_oper) {
-          if (sorted_for_groupby) {
-            sorted_for_groupby->add_child(std::move(table_oper));
-            groupby_oper->add_child(std::move(sorted_for_groupby));
-          }else {
-            groupby_oper->add_child(std::move(table_oper));
-          }
-          project_oper->add_child(std::move(groupby_oper));
-        }else {
-          project_oper->add_child(std::move(table_oper));
-        }
-      }
-    }*/
 
     logical_operator.swap(project_oper);
     return RC::SUCCESS;

@@ -319,12 +319,14 @@ RC cell_at(int index, Value &cell) const override
     if (expr->type() == ExprType::ARITHMETIC) {
       return expr->get_value(*tuple_, cell);
     }
-    LOG_ERROR("Only handle AritheticExpr in current");
+    if (expr->type() == ExprType::FUNC) {
+      return expr->get_value(*tuple_, cell);
+    }
   }
   // 解决project的查询的schema与其他算子schema不同的情况, 实现较为丑陋(对性能不友好)
   return tuple_->find_cell(*speces_[index], cell);
-  // return tuple_->cell_at(index, cell);
 }
+
 RC find_cell(const TupleCellSpec &spec, Value &cell) const override
 {
   RC rc = tuple_->find_cell(spec, cell);

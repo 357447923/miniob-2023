@@ -26,18 +26,7 @@ public:
   ProjectPhysicalOperator()
   {}
 
-  virtual ~ProjectPhysicalOperator() {
-    if (is_none_func_ != nullptr) {
-      if (!(*is_none_func_)) {
-        const Tuple *last_tuple = tuple_.tuple();
-        if (last_tuple != nullptr) {
-          delete last_tuple;
-        }
-      }
-      delete is_none_func_;
-      is_none_func_ = nullptr;
-    }
-  }
+  virtual ~ProjectPhysicalOperator() = default;
 
   void add_projection(const std::vector<Expression *> &expressions);
   
@@ -62,5 +51,7 @@ public:
 private:
   // 返回值
   ProjectTuple tuple_;
-  bool *is_none_func_ = nullptr;
+  bool first_enter_ = true; // 是否为没有表时的第一次进入投影算子
+  bool first_leave_ = true; // 是否为没有表时的第一次关闭投影算子
+  ValueListTuple empty_tuple_;
 };
