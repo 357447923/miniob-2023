@@ -29,7 +29,6 @@ RC checkAndCastValue(Value &value,const FieldMeta *field_meta) {
     const AttrType field_type = field_meta->type();
     if (field_type != value_type) {
       // 对update.value进行数据类型转换
-      Value& value = const_cast<Value&>(value);
       RC rc = common::type_cast(value, field_meta->type());
       if (rc != RC::SUCCESS) {
         LOG_WARN("field type mismatch. field=%s, field_type=%d, value_type=%d",
@@ -79,7 +78,8 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
         LOG_WARN("no such field. table_name=%s, field=%s", table_name, setClause.attribute_name_.c_str());
         return RC::SCHEMA_FIELD_NOT_EXIST;
       } 
-      RC rc = checkAndCastValue(setClause.value_,field_meta);
+      Value &tempValue = setClause.value_;
+      RC rc = checkAndCastValue(tempValue,field_meta);
       if (rc!=RC::SUCCESS)
       {
         return rc;
