@@ -41,6 +41,8 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/table_scan_physical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/update_physical_operator.h"
+#include "sql/operator/create_table_select_logical_operator.h"
+#include "sql/operator/create_table_select_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 
 using namespace std;
@@ -92,6 +94,11 @@ RC PhysicalPlanGenerator::create(LogicalOperator& logical_operator, unique_ptr<P
         case LogicalOperatorType::SORTED: {
             return create_plan(static_cast<SortedLogicalOperator&>(logical_operator), oper);
         } break;
+        
+        case LogicalOperatorType::CREATE_TABLE_SELECT: {
+            return create_plan(static_cast<CreateTableSelectLogicalOperator&>(logical_operator), oper);
+        } break;
+
         default: {
             return RC::INVALID_ARGUMENT;
         }
@@ -506,4 +513,24 @@ RC PhysicalPlanGenerator::create_plan(CalcLogicalOperator& logical_oper, std::un
     CalcPhysicalOperator* calc_oper = new CalcPhysicalOperator(std::move(logical_oper.expressions()));
     oper.reset(calc_oper);
     return rc;
+}
+
+RC PhysicalPlanGenerator::create_plan(CreateTableSelectLogicalOperator &logical_oper, 
+    std::unique_ptr<PhysicalOperator> &oper) {
+  RC rc = RC::SUCCESS;
+  std::vector<unique_ptr<LogicalOperator>> &children = logical_oper.children();
+  assert(children.size() == 1);
+  unique_ptr<PhysicalOperator> physical_oper = unique_ptr<PhysicalOperator>(new CreateTableSelectPhysicalOperator);
+  for (auto &child_oper : children) {
+    unique_ptr<PhysicalOperator> child_physical_oper;
+    rc = create(*child_oper, child_physical_oper);
+    if (rc != RC::SUCCESS) {
+        LOG_WARN("failed to create physical child oper. rc=%s", strrc(rc));
+        return rc;
+    }
+    physical_oper->add_child(std::move(child_physical_oper));
+  }
+
+  oper = std::move(physical_oper);
+  return rc;
 }

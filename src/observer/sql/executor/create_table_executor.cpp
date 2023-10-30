@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/sql_event.h"
 #include "event/session_event.h"
 #include "storage/db/db.h"
+#include "sql/operator/create_table_select_physical_operator.h"
 
 RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
 {
@@ -37,4 +38,8 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
   RC rc = session->get_current_db()->create_table(table_name, attribute_count, create_table_stmt->attr_infos().data());
 
   return rc;
+}
+
+RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
+  return RC::UNIMPLENMENT;
 }

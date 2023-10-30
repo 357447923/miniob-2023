@@ -408,6 +408,24 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
       delete $5;
     }
+    /* create-table-select*/
+    | CREATE TABLE ID AS select_stmt {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+      SelectSqlNode *node = new SelectSqlNode;
+      SelectSqlNode &select_sql_node = $5->selection;
+      node->attributes.swap(select_sql_node.attributes);
+      node->relations.swap(select_sql_node.relations);
+      node->join_conditions.swap(select_sql_node.join_conditions);
+      node->conditions.swap(select_sql_node.conditions);
+      node->groups.swap(select_sql_node.groups);
+      node->orders.swap(select_sql_node.orders);
+      node->havings.swap(select_sql_node.havings);
+      delete $5;
+      create_table.select_table.reset(node);
+    }
     ;
 attr_def_list:
     /* empty */

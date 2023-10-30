@@ -13,11 +13,25 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "sql/stmt/create_table_stmt.h"
+#include "sql/stmt/select_stmt.h"
 #include "event/sql_debug.h"
 
 RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt)
 {
-  stmt = new CreateTableStmt(create_table.relation_name, create_table.attr_infos);
+  CreateTableStmt *create_table_stmt = new CreateTableStmt(create_table.relation_name, create_table.attr_infos);
+  if (create_table.select_table != nullptr) {
+    std::unordered_map<std::string, Table *> parent_table_map;
+    std::vector<Table *> parent_tables;
+    Stmt *select_stmt = nullptr;
+    RC rc = SelectStmt::create(db, *create_table.select_table, parent_tables, parent_table_map, select_stmt);
+    if (rc != RC::SUCCESS) {
+      sql_debug("create table statement fail: select_stmt create fail");
+      delete create_table_stmt;
+      return rc;
+    }
+    create_table_stmt->set_select_stmt(static_cast<SelectStmt *>(select_stmt));
+  }
+  stmt = create_table_stmt;
   sql_debug("create table statement: table name %s", create_table.relation_name.c_str());
   return RC::SUCCESS;
 }
