@@ -79,10 +79,6 @@ RC InsertStmt::create(Db *db, const InsertSqlNode &inserts, Stmt *&stmt)
         return RC::SQL_SYNTAX;
       }
     }
-    for (auto &&out_put_value : values)
-    {
-      sql_debug("insert record: %d",out_put_value.get_int());
-    }
   }
   
   // everything alright
