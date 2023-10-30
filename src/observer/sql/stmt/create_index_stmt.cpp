@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/lang/string.h"
 #include "common/log/log.h"
 #include "storage/index/index_type.h"
+#include "event/sql_debug.h"
 
 using namespace std;
 using namespace common;
@@ -61,6 +62,10 @@ RC CreateIndexStmt::create(Db *db, const CreateIndexSqlNode &create_index, Stmt 
   if (index_type == IndexType::UNKNOWN)
   {
     return RC::INDEX_TYPE_UNKNOWN;
+  }
+  for (auto &&field_meta : field_metas)
+  {
+    sql_debug("create index:%s",field_meta.name());
   }
   stmt = new CreateIndexStmt(table, field_metas, create_index.index_name, index_type);
   return RC::SUCCESS;
