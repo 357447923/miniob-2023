@@ -912,7 +912,7 @@ RC FuncExpr::get_func_data_format_value(const Tuple &tuple, Value &value) const 
             switch (day % 10) {
               case 1: {
                 result_date_str += tmp;
-                result_date_str += "nd";
+                result_date_str += "st";
                 break;
               }
               case 2: {
