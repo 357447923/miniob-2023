@@ -186,50 +186,67 @@ RC PlainCommunicator::write_result_internal(SessionEvent *event, bool &need_disc
   const TupleSchema &schema = sql_result->tuple_schema();
   const int cell_num = schema.cell_num();
 
-  // 此处并没有查值
-  for (int i = 0; i < cell_num; i++) {
-    const TupleCellSpec &spec = schema.cell_at(i);  // 获取schema中的第i项
-    std::string spec_name = spec.to_string();
-    const char *name = spec_name.c_str();
-    if (nullptr != name || name[0] != 0) {
-      if (0 != i) {
-        const char *delim = " | ";
-        rc = writer_->writen(delim, strlen(delim));
-        if (OB_FAIL(rc)) {
-          LOG_WARN("failed to send data to client. err=%s", strerror(errno));
-          return rc;
-        }
-      }
-      const char *field_name = spec.field_name();
-      // if (field_name == nullptr || field_name[0] == 0) {
-      //   calc.insert(&spec, );
-      // }
-      int len = strlen(name);
-      rc = writer_->writen(name, len);
-      if (OB_FAIL(rc)) {
-        LOG_WARN("failed to send data to client. err=%s", strerror(errno));
-        sql_result->close();
-        return rc;
-      }
-    }
-  }
 
-  if (cell_num > 0) {
-    char newline = '\n';
-    rc = writer_->writen(&newline, 1);
-    if (OB_FAIL(rc)) {
-      LOG_WARN("failed to send data to client. err=%s", strerror(errno));
-      sql_result->close();
-      return rc;
-    }
-  }
 
   rc = RC::SUCCESS;
   Tuple *tuple = nullptr;
-  while (RC::SUCCESS == (rc = sql_result->next_tuple(tuple))) {
+  bool is_first_entry = true;
+  while (true) {
+    rc = sql_result->next_tuple(tuple);
+    RC result_code = rc;
+    if (rc == RC::RECORD_EOF && cell_num == 0) {
+      break;
+    }
+    if (rc != RC::RECORD_EOF && rc != RC::SUCCESS) {
+      sql_result->set_return_code(rc);
+      return write_state(event, need_disconnect);
+    }
+    if (is_first_entry) {
+      is_first_entry = false;
+      if (cell_num == 0) {
+        break;
+      }
+      // 此处并没有查值， 目的是画出边框
+      for (int i = 0; i < cell_num; i++) {
+        const TupleCellSpec &spec = schema.cell_at(i);  // 获取schema中的第i项
+        std::string spec_name = spec.to_string();
+        const char *name = spec_name.c_str();
+        if (nullptr != name || name[0] != 0) {
+          if (0 != i) {
+            const char *delim = " | ";
+            rc = writer_->writen(delim, strlen(delim));
+            if (OB_FAIL(rc)) {
+              LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+              return rc;
+            }
+          }
+          const char *field_name = spec.field_name();
+          int len = strlen(name);
+          rc = writer_->writen(name, len);
+          if (OB_FAIL(rc)) {
+            LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+            sql_result->close();
+            return rc;
+          }
+        }
+      }
+
+      if (cell_num > 0) {
+        char newline = '\n';
+        rc = writer_->writen(&newline, 1);
+        if (OB_FAIL(rc)) {
+          LOG_WARN("failed to send data to client. err=%s", strerror(errno));
+          sql_result->close();
+          return rc;
+        }
+      }
+    }
+
+    if (result_code != RC::SUCCESS) {
+      break;
+    }
     assert(tuple != nullptr);
 
-    int cell_num = tuple->cell_num();
     for (int i = 0; i < schema.cell_num(); i++) {
       if (i != 0) {
         const char *delim = " | ";

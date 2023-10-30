@@ -147,7 +147,6 @@ RC SessionStage::handle_sql(SQLStageEvent *sql_event)
 
   // 判断语义合法性,并且创建对应的stmt
 
-
   rc = resolve_stage_.handle_request(sql_event);
   if (OB_FAIL(rc)) {
     LOG_TRACE("failed to do resolve. rc=%s", strrc(rc));
