@@ -369,12 +369,16 @@ RC Table::rollback_update() {
     for (Record& record : old_records) {
         rc = insert_entry_of_indexes(record.data(), record.rid());
     }
+    delete_cache_record();
+    return rc;
+}
+
+void Table::delete_cache_record(){
     old_values.clear();
     old_index.clear();
     change_value_offsets.clear();
     old_records.clear();
     inserted_records.clear();
-    return rc;
 }
 
 const char* Table::name() const {

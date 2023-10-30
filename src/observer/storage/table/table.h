@@ -84,9 +84,9 @@ public:
   RC get_record(const RID &rid, Record &record);
   
   RC recover_insert_record(Record &record);
-
   RC rollback_update();
-
+  void delete_cache_record();
+  
   // TODO refactor
   RC create_index(Trx *trx, const std::vector<FieldMeta> field_metas, const char *index_name, IndexType indexType);
 

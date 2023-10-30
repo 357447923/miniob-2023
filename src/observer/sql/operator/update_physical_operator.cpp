@@ -72,6 +72,6 @@ RC UpdatePhysicalOperator::next() {
       return rc;
     }
   }
-
+  table_->delete_cache_record();
   return RC::RECORD_EOF;
 }
