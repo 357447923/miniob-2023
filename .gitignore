@@ -27,3 +27,5 @@ GTAGS
 docs/book
 observe.log.*
 #*#
+src/observer/sql/parser/yacc_sql.cpp
+src/observer/sql/parser/yacc_sql.hpp
