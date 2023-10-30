@@ -28,6 +28,7 @@ See the Mulan PSL v2 for more details. */
 #include "storage/table/table.h"
 #include "storage/table/table_meta.h"
 #include "storage/trx/trx.h"
+#include "event/sql_debug.h"
 
 Table::~Table() {
     if (record_handler_ != nullptr) {
@@ -368,6 +369,11 @@ RC Table::rollback_update() {
     for (Record& record : old_records) {
         rc = insert_entry_of_indexes(record.data(), record.rid());
     }
+    old_values.clear();
+    old_index.clear();
+    change_value_offsets.clear();
+    old_records.clear();
+    inserted_records.clear();
     return rc;
 }
 

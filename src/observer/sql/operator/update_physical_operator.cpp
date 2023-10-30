@@ -2,6 +2,7 @@
 #include "storage/trx/trx.h"
 #include "storage/record/record.h"
 #include "storage/index/index.h"
+#include "event/sql_debug.h"
 
 UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Value*> update_map) {
   table_ = table;
@@ -66,6 +67,8 @@ RC UpdatePhysicalOperator::next() {
     rc = trx_->update_record(table_, record, std::move(offsets), std::move(indexs), std::move(values));
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
+      sql_debug("failed to update record: %s", strrc(rc));
+      sql_debug("test");
       return rc;
     }
   }
