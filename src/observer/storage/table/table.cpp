@@ -356,7 +356,7 @@ RC Table::rollback_update() {
     // }
     for (size_t i = 0; i < old_records.size(); i++)
     {
-        std::vector<Value> temp_values = old_values.[i];
+        std::vector<Value> temp_values = old_values[i];
         std::vector<int> temp_old_index = old_index[i];
         std::vector<size_t> temp_change_value_offsets = change_value_offsets[i];  
         for (size_t j = 0; j < temp_values.size(); j++)
