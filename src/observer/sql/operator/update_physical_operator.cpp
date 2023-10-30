@@ -50,18 +50,24 @@ RC UpdatePhysicalOperator::next() {
     RowTuple *row_tuple = static_cast<RowTuple *>(tuple);
     Record &record = row_tuple->record();
     int index;
+    // std::vector<int> offsets, std::vector<int> indexs, std::vector<Value&> values
+    std::vector<int> offsets;
+    std::vector<int> indexs;
+    std::vector<Value> values;
     for (const auto& pair : update_map_) {
       const std::string& field_name = pair.first;
       Value* value = pair.second; 
       const FieldMeta *field = table_->table_meta().field(field_name.c_str(), index);
       int offset = field->offset();
-      rc = trx_->update_record(table_, record, offset, index, *value);
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("failed to update record: %s", strrc(rc));
-        return rc;
-      }
+      offsets.push_back(offset);
+      indexs.push_back(index);
+      values.push_back(std::move(*value));
     }
-
+    rc = trx_->update_record(table_, record, std::move(offsets), std::move(indexs), std::move(values));
+    if (rc != RC::SUCCESS) {
+      LOG_WARN("failed to update record: %s", strrc(rc));
+      return rc;
+    }
   }
 
   return RC::RECORD_EOF;

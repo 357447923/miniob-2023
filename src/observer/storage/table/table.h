@@ -80,7 +80,7 @@ public:
   RC insert_record(Record &record);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
-  RC update_record(Record &record, int offset, int index, Value &value);
+  RC update_record(Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values);
   RC get_record(const RID &rid, Record &record);
   
   RC recover_insert_record(Record &record);
@@ -125,8 +125,10 @@ private:
 
   // 以下几个字段为了更新失败时的回滚操作，暂时放在这里
   std::vector<Record> old_records; // 记录被修改过的 record (拷贝)
-  std::vector<size_t> change_value_offsets; // 记录被修修改的字段的偏移量
   std::vector<Record> inserted_records; //记录已经从插入的 record
-  std::vector<Value> old_values;// 原来的值
-  std::vector<int> old_index;
+
+  std::vector<std::vector<Value>> old_values;// 原来的值
+  std::vector<std::vector<int>> old_index;
+  std::vector<std::vector<size_t>> change_value_offsets; // 记录被修修改的字段的偏移量
+
 };

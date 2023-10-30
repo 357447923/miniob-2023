@@ -238,7 +238,8 @@ RC Table::insert_record(Record& record) {
     return rc;
 }
 
-RC Table::update_record(Record& record, int offset, int index, Value& value) {
+RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values) {
+    // 1.删除索引
     RC rc = RC::SUCCESS;
     for (auto index : indexes_) {
         rc = index->delete_entry(record.data(), &record.rid());
@@ -252,23 +253,34 @@ RC Table::update_record(Record& record, int offset, int index, Value& value) {
         LOG_ERROR("Update record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
         return rc;
     }
+    // 2.修改记录
     // 为了进行回滚操作，需要构造一个 oldValue
-    Value oldValue = Value(record.data() + offset, value.length());
-    str_to_target(oldValue, value.attr_type());
-    rc = record_handler_->update_record(offset, index, value, record);
+    std::vector<Value> temp_values;
+    std::vector<int> temp_old_index;
+    std::vector<size_t> temp_change_value_offsets;
+    for (size_t i = 0; i < values.size(); i++)
+    {
+        Value oldValue = Value(record.data() + offsets[i], values[i].length());
+        rc = record_handler_->update_record(offsets[i], indexs[i], values[i], record);
+        if (rc == RC::SUCCESS)
+        {
+            temp_values.push_back(std::move(oldValue));
+            temp_old_index.push_back(indexs[i]);
+            temp_change_value_offsets.push_back(offsets[i]);
+        }   
+    }
     if (rc == RC::SUCCESS) {
         // 如果修改 record 成功了，将 oldValue 加入 old_values，方便回滚时修改回来
-        old_values.push_back(std::move(oldValue));
-        old_index.push_back(index);
-        change_value_offsets.push_back(offset);
+        old_values.push_back(std::move(temp_values));
+        old_index.push_back(std::move(temp_old_index));
+        change_value_offsets.push_back(std::move(temp_change_value_offsets));
     } else {
         // 回滚
         rollback_update();
         LOG_ERROR("Update record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
         return rc;
     }
-
-    // 更新索引
+    // 3.更新索引
     for (auto index : indexes_) {
         rc = index->insert_entry(record.data(), &record.rid());
     }
@@ -278,6 +290,7 @@ RC Table::update_record(Record& record, int offset, int index, Value& value) {
     } else {
         rollback_update();
         LOG_ERROR("Update record failed. table name=%s, rc=%s", table_meta_.name(), strrc(rc));
+        return rc;
     }
     return rc;
 }
@@ -338,8 +351,18 @@ RC Table::rollback_update() {
         rc = delete_entry_of_indexes(record.data(), record.rid(), b);
     }
     // 更新回原来的值
-    for (size_t i = 0; i < old_values.size(); i++) {
-        rc = record_handler_->update_record(change_value_offsets[i], old_index[i],old_values[i], old_records[i]);
+    // for (size_t i = 0; i < old_values.size(); i++) {
+    //     rc = record_handler_->update_record(change_value_offsets[i], old_index[i],old_values[i], old_records[i]);
+    // }
+    for (size_t i = 0; i < old_records.size(); i++)
+    {
+        std::vector<Value> temp_values = old_values.[i];
+        std::vector<int> temp_old_index = old_index[i];
+        std::vector<size_t> temp_change_value_offsets = change_value_offsets[i];  
+        for (size_t j = 0; j < temp_values.size(); j++)
+        {
+            rc = record_handler_->update_record(temp_change_value_offsets[j], temp_old_index[j], temp_values[j], old_records[i]);
+        }
     }
     // 插入旧的索引
     for (Record& record : old_records) {
