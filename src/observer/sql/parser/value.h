@@ -30,6 +30,7 @@ enum AttrType
   DATES,          ///< 日期类型(4字节)
   NULLS,          ///< NULL类型(0字节)
   BOOLEANS,       ///< boolean类型，当前不是由parser解析出来的，是程序内部使用的
+  TEXTS,          ///< text类型，超长字符串，最多支持65535字节
 };
 
 const char *attr_type_to_string(AttrType type);

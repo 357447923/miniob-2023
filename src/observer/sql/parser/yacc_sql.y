@@ -93,6 +93,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         STRING_T
         FLOAT_T
         DATE_T
+        TEXT_T
         null
         IS
         NOT
@@ -460,6 +461,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T   { $$=DATES; }
+    | TEXT_T   { $$=TEXTS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE value_lists

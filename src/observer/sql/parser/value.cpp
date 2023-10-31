@@ -30,12 +30,13 @@ const char *ATTR_TYPE_NAME[] = {
   [FLOATS] = "floats", 
   [DATES] = "dates", 
   [NULLS] = "nulls",
-  [BOOLEANS] = "booleans"
+  [BOOLEANS] = "booleans",
+  [TEXTS] = "texts"
 };
 
 const char *attr_type_to_string(AttrType type)
 {
-  if (type >= UNDEFINED && type <= BOOLEANS) {
+  if (type >= UNDEFINED && type <= TEXTS) {
     return ATTR_TYPE_NAME[type];
   }
   return "unknown";
