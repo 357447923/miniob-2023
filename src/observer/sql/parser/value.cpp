@@ -63,6 +63,9 @@ RC str_to_target(Value& value, AttrType target) {
   // 转化为  text
   if (target == TEXTS)
   {
+    if (strlen(value.get_string().c_str()) > TEXT_MAX_LEN) {
+        return RC::TYPE_CAST_ERROR;
+    }
     value.set_text(value.get_string().c_str());
     return RC::SUCCESS;
   }
