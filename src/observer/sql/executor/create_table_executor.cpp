@@ -56,8 +56,15 @@ static RC insert_record_to_table(Table *table, int size, int bitmap_len, std::ve
   Record record;
   char *data = (char *)malloc(size);
   record.set_data_owner(data, size, bitmap_len);
+  memset(data, 0, bitmap_len);
+  common::Bitmap bitmap(data, bitmap_len);
   data += bitmap_len;
-  for (auto &val : values) {
+  for (int i = 0; i < values.size(); ++i) {
+    Value &val = values[i];
+    if (val.is_null()) {
+      bitmap.clear_bit(i);
+      continue;
+    }
     const char *val_data = val.data();
     memcpy(data, val_data, val.length());
     data += val.length();
@@ -106,22 +113,15 @@ static RC handle_create_without_table(const TupleSchema &schema, CreateTableStmt
   if (table == nullptr) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
+  
   int bitmap_len = common::bitmap_size(schema.cell_num());
   int size = table->table_meta().record_size();
-  char *data = (char *)malloc(size);
-  record.set_data_owner(data, size, bitmap_len);
-  // 跳过位图的长度
-  data += bitmap_len;
-  for (auto &val : values) {
-    const char *val_data = val.data();
-    int length = val.length();
-    memcpy(data, val_data, length);
-    data += length;
+  rc = insert_record_to_table(table, size, bitmap_len, values);
+  if (rc != RC::SUCCESS) {
+    db->drop_table(table->name());
+    return RC::INTERNAL;
   }
-  LOG_INFO("record copy finished");
-  
-  rc = table->insert_record(record);
-  return rc == RC::SUCCESS? RC::RECORD_EOF: RC::INTERNAL;
+  return RC::RECORD_EOF;
 }
 
 static RC handle_normal_field(const TupleCellSpec &spec, CreateTableInfo &info, const std::vector<Table *> &tables) {
@@ -189,18 +189,6 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
         continue;
       }
       switch (expr->type()) {
-        case ExprType::AGGRFUNCTION: {
-          const AggrFuncExpr *aggr_expr = static_cast<const AggrFuncExpr *>(expr);
-          FieldExpr *field_expr = aggr_expr->field();
-          if (field_expr) {
-            handle_normal_field(spec, info, tables);
-            create_table_stmt->add_attr_info(info);
-          }else {
-            const Value &value = aggr_expr->value()->get_value();
-            init_create_table_info(value.attr_type(), spec.to_string(), false, value.length(), info);
-            create_table_stmt->add_attr_info(info);
-          }
-        }break;
         case ExprType::FUNC: {
           const FuncExpr *func_expr = static_cast<const FuncExpr *>(expr);
           if (func_expr->func_type() != FUNC_DATE_FORMAT) {
@@ -216,6 +204,29 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
           return RC::INTERNAL;
         }
       }
+      continue;
+    }
+    AggFuncType aggr_func = spec.aggfunc_type();
+    if (aggr_func != FUNC_NONE) {
+      const char *table_name = spec.table_name();
+      const char *field_name = spec.field_name();
+      if (!field_name) {
+        ValueExpr *value_expr = new ValueExpr;
+        AggrFuncExpr expr(aggr_func, value_expr);
+        init_create_table_info(expr.value_type(), spec.to_string(), false, values[i].length(), info);
+        create_table_stmt->add_attr_info(info);
+        continue;
+      }
+      Table *table = nullptr;
+      if (tables.size() == 1) {
+        table = tables[0];
+      }else {
+        table = find_table(table_name, tables);
+      }
+      FieldExpr *field_expr = new FieldExpr(table, table->table_meta().field(field_name), aggr_func);
+      AggrFuncExpr expr(aggr_func, field_expr);
+      init_create_table_info(expr.value_type(), spec.to_string(), false, values[i].length(), info);
+      create_table_stmt->add_attr_info(info);
       continue;
     }
     // 普通字段
@@ -238,6 +249,7 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   // 第一次往表中插入数据
   rc = insert_record_to_table(table, size, bitmap_len, values);
   if (rc != RC::SUCCESS) {
+    db->drop_table(table->name());
     return rc;
   }
   // 第n次向表中插入数据
@@ -252,6 +264,7 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
     }
     rc = insert_record_to_table(table, size, bitmap_len, values);
     if (rc != RC::SUCCESS) {
+      db->drop_table(table->name());
       return rc;
     }
   }
