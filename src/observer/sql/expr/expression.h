@@ -407,6 +407,17 @@ public:
   }
 
   AttrType value_type() const override {
+    switch (func_type_) {
+      case FUNC_LENGTH: {
+        return AttrType::INTS;
+      }
+      case FUNC_DATE_FORMAT: {
+        return AttrType::CHARS;
+      }
+      case FUNC_ROUND: {
+        return AttrType::FLOATS;
+      }
+    }
     return AttrType::UNDEFINED;
   }
 

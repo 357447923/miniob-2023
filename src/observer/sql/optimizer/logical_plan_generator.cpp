@@ -462,7 +462,8 @@ RC LogicalPlanGenerator::create_plan(CreateTableStmt *create_table_stmt,
         LOG_ERROR("create table by select fail. select operator create fail");
         return rc;
     }
-    logical_operator = unique_ptr<LogicalOperator>(new CreateTableSelectLogicalOperator);
+    logical_operator = unique_ptr<LogicalOperator>(
+        new CreateTableSelectLogicalOperator(create_table_stmt, create_table_stmt->db()));
     logical_operator->add_child(std::move(select_oper));
     return rc;
 }

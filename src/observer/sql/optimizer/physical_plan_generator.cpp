@@ -530,7 +530,9 @@ RC PhysicalPlanGenerator::create_plan(CreateTableSelectLogicalOperator &logical_
     }
     physical_oper->add_child(std::move(child_physical_oper));
   }
-
+  
+  CreateTableSelectPhysicalOperator *create_oper = (CreateTableSelectPhysicalOperator *)(physical_oper.get());
+  create_oper->set_db(logical_oper.db());
   oper = std::move(physical_oper);
   return rc;
 }

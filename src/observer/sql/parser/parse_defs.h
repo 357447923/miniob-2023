@@ -40,7 +40,6 @@ enum AggFuncType
   FUNC_SUM,
   FUNC_NONE
 };
-// 最好不要放头文件里
 const static char *AGGR_FUNC_TYPE_NAME[] = {"MAX", "MIN", "COUNT", "AVG", "SUM"}; 
 
 /**

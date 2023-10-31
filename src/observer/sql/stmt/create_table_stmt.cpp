@@ -29,7 +29,8 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
       delete create_table_stmt;
       return rc;
     }
-    create_table_stmt->set_select_stmt(static_cast<SelectStmt *>(select_stmt));
+    create_table_stmt->select_stmt_ = static_cast<SelectStmt *>(select_stmt);
+    create_table_stmt->db_ = db;
   }
   stmt = create_table_stmt;
   sql_debug("create table statement: table name %s", create_table.relation_name.c_str());
