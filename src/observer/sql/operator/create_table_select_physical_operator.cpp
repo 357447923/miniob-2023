@@ -9,8 +9,7 @@ RC CreateTableSelectPhysicalOperator::open(Trx *trx) {
 }
 
 RC CreateTableSelectPhysicalOperator::next() {
-  
-  return children_[0]->next();
+  return executor_.execute(this);
 }
 
 RC CreateTableSelectPhysicalOperator::close() {

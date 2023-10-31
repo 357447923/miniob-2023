@@ -42,11 +42,27 @@ RC CreateTableExecutor::execute(SQLStageEvent *sql_event)
   return rc;
 }
 
-static void init_create_table_info(AttrType type, const std::string &&name, bool not_null, int len, CreateTableInfo &info) {
+static inline void init_create_table_info(AttrType type, const std::string &&name, bool not_null, int len, CreateTableInfo &info) {
   info.type = type;
   info.name = std::move(name);
   info.not_null = not_null;
   info.length = len;
+}
+
+/**
+ * 本方法的values中的元素个数必须与table的field值匹配
+ */
+static RC insert_record_to_table(Table *table, int size, int bitmap_len, std::vector<Value> &values) {
+  Record record;
+  char *data = (char *)malloc(size);
+  record.set_data_owner(data, size, bitmap_len);
+  data += bitmap_len;
+  for (auto &val : values) {
+    const char *val_data = val.data();
+    memcpy(data, val_data, val.length());
+    data += val.length();
+  }
+  return table->insert_record(record);
 }
 
 static Table *find_table(const char *table_name, const std::vector<Table *> &tables) {
@@ -58,24 +74,72 @@ static Table *find_table(const char *table_name, const std::vector<Table *> &tab
   return nullptr;
 }
 
-static RC handle_no_table(const TupleSchema &schema, CreateTableStmt *create_table_stmt) {
+static RC handle_create_without_table(const TupleSchema &schema, CreateTableStmt *create_table_stmt, Db *db) {
   Record record;
   std::vector<Value> values;
+  values.resize(schema.cell_num());
+  ValueListTuple tuple;
   for (int i = 0; i < schema.cell_num(); ++i) {
     const TupleCellSpec &spec = schema.cell_at(i);
     Expression *expr = spec.expression();
     if (!expr) {
       return RC::SQL_SYNTAX;
     }
-    values.push_back(Value());
-    RC rc = expr->try_get_value(values.back());
+    RC rc = expr->get_value(tuple, values[i]);
     if (rc != RC::SUCCESS) {
       return rc;
     }
+    CreateTableInfo info;
+    const Value &value = values[i];
+    // 由于没有表的查询，所以不清楚能不能插入NULL值
+    init_create_table_info(value.attr_type(), spec.to_string(), false, value.length(), info);
+    // 要检查一下这样写会不会有问题，内部虽然用的移动语义，但是我不太会用
+    create_table_stmt->add_attr_info(info);
   }
+  const std::vector<CreateTableInfo> &infos = create_table_stmt->attr_infos();
+  RC rc = db->create_table(create_table_stmt->table_name().c_str(), infos.size(), infos.data());
+  if (rc != RC::SUCCESS) {
+    LOG_WARN("table: %s create fail, rc=%s", create_table_stmt->table_name().c_str(), strrc(rc));
+    return rc;
+  }
+  Table *table = db->find_table(create_table_stmt->table_name().c_str());
+  if (table == nullptr) {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
+  int bitmap_len = common::bitmap_size(schema.cell_num());
+  int size = table->table_meta().record_size();
+  char *data = (char *)malloc(size);
+  record.set_data_owner(data, size, bitmap_len);
+  // 跳过位图的长度
+  data += bitmap_len;
   for (auto &val : values) {
-    
+    const char *val_data = val.data();
+    int length = val.length();
+    memcpy(data, val_data, length);
+    data += length;
   }
+  LOG_INFO("record copy finished");
+  
+  rc = table->insert_record(record);
+  return rc == RC::SUCCESS? RC::RECORD_EOF: RC::INTERNAL;
+}
+
+static RC handle_normal_field(const TupleCellSpec &spec, CreateTableInfo &info, const std::vector<Table *> &tables) {
+  Table *table;
+  if (tables.size() == 1) {
+    table = tables[0];
+  }else {
+    table = find_table(spec.table_name(), tables);
+    if (table == nullptr) {
+      return RC::SCHEMA_TABLE_NOT_EXIST;
+    }
+  }
+  const TableMeta table_meta = table->table_meta();
+  const FieldMeta *field_meta = table_meta.field(spec.field_name());
+  if (field_meta == nullptr) {
+    return RC::SCHEMA_FIELD_NOT_EXIST;
+  }
+  init_create_table_info(field_meta->type(), spec.to_string(), field_meta->not_null(), field_meta->len(), info);
   return RC::SUCCESS;
 }
 
@@ -83,70 +147,114 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   CreateTableStmt *create_table_stmt = oper->create_table_stmt();
   SelectStmt *select_stmt = create_table_stmt->select_stmt();
   Db *db = oper->db();
-  auto &project = oper->children()[0];
   assert(db != nullptr);
   assert(create_table_stmt != nullptr);
-  RC rc = project->next();
+  RC rc = RC::SUCCESS;
+  const TupleSchema &schema = oper->schema();
   if (rc != RC::SUCCESS) {
     LOG_ERROR("find first record fail when create table.");
     return rc;
   }
-  // 有可能没有from语句，要注意
+
   const std::vector<Table *> &tables = select_stmt->tables();
-  bool no_tables = tables.empty();
+  // 处理没有from语句的情况，比如select FUNC('1111');
+  if (tables.empty()) {
+    rc = handle_create_without_table(schema, create_table_stmt, db);
+    return rc;
+  }
+  auto &project = oper->children()[0];
+  rc = project->next();
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
   Tuple *tuple = project->current_tuple();
-  const TupleSchema &schema = oper->schema();
+  std::vector<Value> values;
+  values.resize(schema.cell_num());
   // 先做单表的试试看
   Table *table = nullptr;
-  // TODO 把table初始化, 这个是原始的table
   for (int i = 0; i < schema.cell_num(); ++i) {
     const TupleCellSpec &spec = schema.cell_at(i);
     CreateTableInfo info;
     const Expression *expr = spec.expression();
+    tuple->cell_at(i, values[i]);
     if (expr) {
       AttrType attr_type = expr->value_type();
-      if (attr_type != UNDEFINED && attr_type != CHARS) {
+      if (attr_type == UNDEFINED || attr_type == BOOLEANS || attr_type == NULLS) {
+        LOG_ERROR("other type unimplenment");
+        return RC::INTERNAL;
+      }
+      if (attr_type != CHARS) {
         init_create_table_info(attr_type, spec.to_string(), false, 4, info);
         create_table_stmt->add_attr_info(info);
         continue;
       }
-      if (no_tables && attr_type == CHARS) {
-        Value tmp;
-        expr->try_get_value(tmp);
-        assert(tmp.attr_type() != AttrType::UNDEFINED);
-        init_create_table_info(attr_type, spec.to_string(), false, tmp.get_string().size(), info);
+      switch (expr->type()) {
+        case ExprType::AGGRFUNCTION: {
+          const AggrFuncExpr *aggr_expr = static_cast<const AggrFuncExpr *>(expr);
+          FieldExpr *field_expr = aggr_expr->field();
+          if (field_expr) {
+            handle_normal_field(spec, info, tables);
+            create_table_stmt->add_attr_info(info);
+          }else {
+            const Value &value = aggr_expr->value()->get_value();
+            init_create_table_info(value.attr_type(), spec.to_string(), false, value.length(), info);
+            create_table_stmt->add_attr_info(info);
+          }
+        }break;
+        case ExprType::FUNC: {
+          const FuncExpr *func_expr = static_cast<const FuncExpr *>(expr);
+          if (func_expr->func_type() != FUNC_DATE_FORMAT) {
+            LOG_ERROR("this func type unimplenment create table select");
+            return RC::INTERNAL;
+          }
+          Value &value = values[i];
+          init_create_table_info(CHARS, spec.to_string(), false, 74, info);
+          create_table_stmt->add_attr_info(info);
+        }break;
+        default: {
+          LOG_ERROR("this expr type unimplenment");
+          return RC::INTERNAL;
+        }
       }
+      continue;
     }
-    const char *table_name = spec.table_name();
-    const char *field_name = spec.field_name();
-    if (!table_name) {
-      table = tables[0];
-    }else {
-      table = find_table(table_name, tables);
-    }
-    // 这里应该不用考虑投影子查询的情况
-    // TODO 考虑聚合函数和函数的情况，考虑是算数表达式的情况
-    if (field_name) {
-      const TableMeta &table_meta = table->table_meta();
-      const FieldMeta *field_meta = table_meta.field(field_name);
-      init_create_table_info(field_meta->type(), spec.to_string(), field_meta->not_null(), field_meta->len(), info);   
-    }
+    // 普通字段
+    handle_normal_field(spec, info, tables);
     create_table_stmt->add_attr_info(info);
   }
   const std::vector<CreateTableInfo> &infos = create_table_stmt->attr_infos();
-  RC rc = db->create_table(create_table_stmt->table_name().c_str(), infos.size(), infos.data());
+  rc = db->create_table(create_table_stmt->table_name().c_str(), infos.size(), infos.data());
   if (rc != RC::SUCCESS) {
     return rc;
   }
 
-  // const TableMeta &table_meta = table->table_meta();
-  // const FieldMeta *field_meta = table_meta.field(0);
-  // char *data = (char *)malloc(table_meta.record_size());
-  // record.set_data_owner(data, table_meta.record_size(), field_meta->offset());
+  table = db->find_table(create_table_stmt->table_name().c_str());
+  if (table == nullptr) {
+    return RC::SCHEMA_TABLE_NOT_EXIST;
+  }
 
-  // 往表中插入数据
-  // table->insert_record();
-  // while (true);
-  const char *table_name = create_table_stmt->table_name().c_str();
-  return RC::INTERNAL;
+  int bitmap_len = common::bitmap_size(schema.cell_num());
+  int size = table->table_meta().record_size();
+  // 第一次往表中插入数据
+  rc = insert_record_to_table(table, size, bitmap_len, values);
+  if (rc != RC::SUCCESS) {
+    return rc;
+  }
+  // 第n次向表中插入数据
+  while (RC::SUCCESS == (rc = project->next())) {
+    tuple = project->current_tuple();
+    for (int i = 0; i < schema.cell_num(); ++i) {
+      RC rc = tuple->cell_at(i, values[i]);
+      if (rc != RC::SUCCESS) {
+        // 测试
+        assert(false);
+      }
+    }
+    rc = insert_record_to_table(table, size, bitmap_len, values);
+    if (rc != RC::SUCCESS) {
+      return rc;
+    }
+  }
+
+  return rc == RC::RECORD_EOF? rc: RC::INTERNAL;
 }

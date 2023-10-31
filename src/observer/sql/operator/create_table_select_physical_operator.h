@@ -39,7 +39,6 @@ public:
   }
 
 private:
-  bool is_first_enter_ = false;
   CreateTableStmt *create_table_stmt_ = nullptr;
   Db *db_ = nullptr;
   TupleSchema schema_;

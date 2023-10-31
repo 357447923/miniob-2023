@@ -376,15 +376,15 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
-  FieldExpr *field() {
+  FieldExpr *field() const {
     return field_;
   }
 
-  ValueExpr *value() {
+  ValueExpr *value() const {
     return value_;
   }
 
-  AggFuncType aggr_type() {
+  AggFuncType aggr_type() const {
     return type_;
   }
 
@@ -421,15 +421,15 @@ public:
     return AttrType::UNDEFINED;
   }
 
-  FuncType func_type() {
+  FuncType func_type() const {
     return func_type_;
   }
 
-  std::vector<Expression *> get_params() {
+  std::vector<Expression *> get_params() const {
     return params_expr_;
   }
 
-  int get_param_size() {
+  int get_param_size() const {
     return param_size_;
   }
 

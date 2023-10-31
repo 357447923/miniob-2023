@@ -18,9 +18,9 @@ See the Mulan PSL v2 for more details. */
 #include <vector>
 
 #include "sql/stmt/stmt.h"
+#include "sql/stmt/select_stmt.h"
 
 class Db;
-class SelectStmt;
 
 typedef AttrInfoSqlNode CreateTableInfo;
 
@@ -36,7 +36,12 @@ public:
         : table_name_(table_name),
           attr_infos_(attr_infos)
   {}
-  virtual ~CreateTableStmt() = default;
+  virtual ~CreateTableStmt() {
+    if (select_stmt_) {
+      delete select_stmt_;
+      select_stmt_ = nullptr;
+    }
+  }
 
   StmtType type() const override { return StmtType::CREATE_TABLE; }
 
