@@ -35,7 +35,7 @@ See the Mulan PSL v2 for more details. */
 #include "readline/history.h"
 #endif
 
-#define MAX_MEM_BUFFER_SIZE 8192
+#define MAX_MEM_BUFFER_SIZE 70000
 #define PORT_DEFAULT 6789
 
 using namespace common;
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
     }
 
     if (is_file(input_command)) {
-        const size_t len = 8192;
+        const size_t len = 65600;
         char* tmp = new char[len];
         memset(tmp, 0, len);
         int fd = fileno(fopen("/home/warrior/project/miniob-2023/src/obclient/input.txt", "r"));

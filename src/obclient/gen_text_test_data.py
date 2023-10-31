@@ -5,13 +5,13 @@ import string
 random_int = random.randint(1, 1000)
 
 # 生成一个长度为65535的随机字符串
-random_string = ''.join(random.choice(string.ascii_letters) for _ in range(20))
+random_string = ''.join(random.choice(string.ascii_letters) for _ in range(65535))
 
 # 创建要写入的数据行
-data_line = f"insert into t values ({random_int}, '{random_string}')"
+data_line = f"insert into t values ('{random_string}', {random_int})"
 
 # 将数据行写入文件
 with open('input.txt', 'w') as file:
     file.write(data_line)
 
-print(f"数据已写入input.txt文件")
+print(f"The test case for text has been written to input.txt")

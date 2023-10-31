@@ -53,6 +53,7 @@ RC UpdatePhysicalOperator::next() {
     int index;
     // std::vector<int> offsets, std::vector<int> indexs, std::vector<Value&> values
     std::vector<int> offsets;
+    std::vector<int> lens;
     std::vector<int> indexs;
     std::vector<Value> values;
     for (const auto& pair : update_map_) {
@@ -60,11 +61,13 @@ RC UpdatePhysicalOperator::next() {
       Value* value = pair.second; 
       const FieldMeta *field = table_->table_meta().field(field_name.c_str(), index);
       int offset = field->offset();
+      int len = field->len();
       offsets.push_back(offset);
+      lens.push_back(len);
       indexs.push_back(index);
       values.push_back(std::move(*value));
     }
-    rc = trx_->update_record(table_, record, std::move(offsets), std::move(indexs), std::move(values));
+    rc = trx_->update_record(table_, record, std::move(offsets), std::move(indexs), std::move(values), std::move(lens));
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to update record: %s", strrc(rc));
       sql_debug("failed to update record: %s", strrc(rc));

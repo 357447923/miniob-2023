@@ -239,7 +239,7 @@ RC Table::insert_record(Record& record) {
     return rc;
 }
 
-RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values) {
+RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) {
     // 1.删除索引
     RC rc = RC::SUCCESS;
     for (auto index : indexes_) {
@@ -259,15 +259,17 @@ RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<in
     std::vector<Value> temp_values;
     std::vector<int> temp_old_index;
     std::vector<size_t> temp_change_value_offsets;
+    std::vector<int> temp_change_value_lens;
     for (size_t i = 0; i < values.size(); i++)
     {
         Value oldValue = Value(record.data() + offsets[i], values[i].length());
-        rc = record_handler_->update_record(offsets[i], indexs[i], values[i], record);
+        rc = record_handler_->update_record(offsets[i], indexs[i], values[i], record, lens[i]);
         if (rc == RC::SUCCESS)
         {
             temp_values.push_back(std::move(oldValue));
             temp_old_index.push_back(indexs[i]);
             temp_change_value_offsets.push_back(offsets[i]);
+            temp_change_value_lens.push_back(offsets[i]);
         }   
     }
     if (rc == RC::SUCCESS) {
@@ -275,6 +277,7 @@ RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<in
         old_values.push_back(std::move(temp_values));
         old_index.push_back(std::move(temp_old_index));
         change_value_offsets.push_back(std::move(temp_change_value_offsets));
+        change_value_lens.push_back(std::move(temp_change_value_lens));
     } else {
         // 回滚
         rollback_update();
@@ -360,9 +363,10 @@ RC Table::rollback_update() {
         std::vector<Value> temp_values = old_values[i];
         std::vector<int> temp_old_index = old_index[i];
         std::vector<size_t> temp_change_value_offsets = change_value_offsets[i];  
+        std::vector<int> temp_change_value_lens = change_value_lens[i];  
         for (size_t j = 0; j < temp_values.size(); j++)
         {
-            rc = record_handler_->update_record(temp_change_value_offsets[j], temp_old_index[j], temp_values[j], old_records[i]);
+            rc = record_handler_->update_record(temp_change_value_offsets[j], temp_old_index[j], temp_values[j], old_records[i],temp_change_value_lens[j]);
         }
     }
     // 插入旧的索引
