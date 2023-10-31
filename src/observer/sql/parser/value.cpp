@@ -60,6 +60,13 @@ RC str_to_target(Value& value, AttrType target) {
   if (target == CHARS) {
     return RC::SUCCESS;
   }
+  // 转化为  text
+  if (target == TEXTS)
+  {
+    value.set_text(value.get_string().c_str());
+    return RC::SUCCESS;
+  }
+
   // 不是以下几种类型，直接返回错误
   if (target != INTS && target != FLOATS && target != DATES) {
     LOG_ERROR("cast to int error, because str can't be convert to %s", attr_type_to_string(target));
@@ -166,6 +173,19 @@ RC dates_to_target(Value& value, AttrType target) {
   return RC::SUCCESS;
 }
 
+RC texts_to_target(Value& value, AttrType target) {
+  if (target == TEXTS) {
+    return RC::SUCCESS;
+  }
+  if (target != CHARS) {
+    LOG_ERROR("date can't cast to %s", attr_type_to_string(target));
+    return RC::TYPE_CAST_ERROR;
+  }
+  std::string str = value.get_text();
+  value.set_text(str.c_str());
+  return RC::SUCCESS;
+}
+
 Value::Value(int val)
 {
   set_int(val);
@@ -191,6 +211,9 @@ void Value::set_data(char *data, int length)
   switch (attr_type_) {
     case CHARS: {
       set_string(data, length);
+    } break;
+    case TEXTS: {
+      set_text(data);
     } break;
     case NULLS: {
       set_null();
@@ -248,6 +271,17 @@ void Value::set_string(const char *s, int len /*= 0*/)
   length_ = str_value_.length();
 }
 
+void Value::set_text(const char* s) {
+    attr_type_ = TEXTS;
+    // 截断输入字符串为不超过 TEXT_MAX_LEN 个字符
+    if (strlen(s) > TEXT_MAX_LEN) {
+        str_value_.assign(s, TEXT_MAX_LEN);
+    } else {
+        str_value_.assign(s);
+    }
+    length_ = str_value_.length();
+}
+
 void Value::set_date(int32_t date) {
   attr_type_ = DATES;
   num_value_.int_value_ = date;
@@ -269,6 +303,9 @@ void Value::set_value(const Value &value)
     case CHARS: {
       set_string(value.get_string().c_str());
     } break;
+    case TEXTS: {
+      set_text(value.get_text().c_str());
+    }
     case BOOLEANS: {
       set_boolean(value.get_boolean());
     } break;
@@ -284,7 +321,8 @@ void Value::set_value(const Value &value)
 const char *Value::data() const
 {
   switch (attr_type_) {
-    case CHARS: {
+    case CHARS: 
+    case TEXTS: {
       return str_value_.c_str();
     } break;
     default: {
@@ -309,7 +347,8 @@ std::string Value::to_string() const
     case NULLS: {
       os << "NULL";
     }break;
-    case CHARS: {
+    case CHARS:
+    case TEXTS: {
       os << str_value_;
     } break;
     case DATES: {
@@ -355,7 +394,8 @@ RC Value::compare(const Value &other) const
       case FLOATS: {
         return rc_cmp_res(common::compare_float((void *)&this->num_value_.float_value_, (void *)&other.num_value_.float_value_));
       } break;
-      case CHARS: {
+      case CHARS:
+      case TEXTS: {
         return rc_cmp_res(common::compare_string((void *)this->str_value_.c_str(),
             this->str_value_.length(),
             (void *)other.str_value_.c_str(),
@@ -406,7 +446,8 @@ RC Value::like_compare(const Value &other) const
 int Value::get_int() const
 {
   switch (attr_type_) {
-    case CHARS: {
+    case CHARS:
+    case TEXTS: {
       try {
         return (int)(std::stol(str_value_));
       } catch (std::exception const &ex) {
@@ -434,7 +475,8 @@ int Value::get_int() const
 float Value::get_float() const
 {
   switch (attr_type_) {
-    case CHARS: {
+    case CHARS:
+    case TEXTS: {
       try {
         return std::stof(str_value_);
       } catch (std::exception const &ex) {
@@ -464,9 +506,15 @@ std::string Value::get_string() const
   return this->to_string();
 }
 
+std::string Value::get_text() const
+{
+  return this->to_string();
+}
+
 bool Value::get_boolean() const
 {
   switch (attr_type_) {
+    case TEXTS:
     case CHARS: {
       try {
         float val = std::stof(str_value_);

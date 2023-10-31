@@ -396,21 +396,23 @@ RC Table::make_record(int value_num, const Value* values, Record& record) {
         return RC::SCHEMA_FIELD_MISSING;
     }
 
-    const int normal_field_start_index = table_meta_.sys_field_num();
-    for (int i = 0; i < value_num; i++) {
-        const FieldMeta* field = table_meta_.field(i + normal_field_start_index);
-        const Value& value = values[i];
-        // 在前面生成stmt的时候已经做过判断表是否支持NULL类型了,如果value是NULL,能走到这里的都是支持的
-        if (value.attr_type() == NULLS) {
-            continue;
-        }
-        // 在前面生成stmt的时候已经做过类型转换了，如果在这里类型不同，那肯定就是无法转为对应类型
-        if (field->type() != value.attr_type()) {
-            LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
-                      table_meta_.name(), field->name(), field->type(), value.attr_type());
-            return RC::SCHEMA_FIELD_TYPE_MISMATCH;
-        }
+  const int normal_field_start_index = table_meta_.sys_field_num();
+  for (int i = 0; i < value_num; i++) {
+    const FieldMeta *field = table_meta_.field(i + normal_field_start_index);
+    const Value &value = values[i];
+    // 在前面生成stmt的时候已经做过判断表是否支持NULL类型了,如果value是NULL,能走到这里的都是支持的
+    if (value.attr_type() == NULLS) {
+      continue;
     }
+    // 在前面生成stmt的时候已经做过类型转换了，如果在这里类型不同，那肯定就是无法转为对应类型
+    if (field->type() != value.attr_type()) {
+      LOG_ERROR("Invalid value type. table name =%s, field name=%s, type=%d, but given=%d",
+                table_meta_.name(), field->name(), field->type(), value.attr_type());
+      return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+    }
+  }
+
+  
 
     // 复制所有字段的值
     int bitmap_size = common::bitmap_size(table_meta_.field_metas()->size());
@@ -425,7 +427,7 @@ RC Table::make_record(int value_num, const Value* values, Record& record) {
         size_t copy_len = field->len();
         if (value.attr_type() == NULLS) {
             bitmap.set_bit(i);
-        } else if (field->type() == CHARS) {
+        } else if (field->type() == CHARS || field->type() == TEXTS) {
             const size_t data_len = value.length();
             if (copy_len > data_len) {
                 copy_len = data_len + 1;

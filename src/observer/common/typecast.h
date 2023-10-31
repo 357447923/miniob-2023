@@ -15,6 +15,7 @@ namespace common
         [DATES] = dates_to_target,
         [NULLS] = nullptr,
         [BOOLEANS] = nullptr,
+        [TEXTS] = texts_to_target,
     };
 
     static RC type_cast(Value& value, AttrType target_type) {

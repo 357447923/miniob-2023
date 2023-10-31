@@ -17,6 +17,8 @@ See the Mulan PSL v2 for more details. */
 #include <string>
 #include "common/rc.h"
 
+#define TEXT_MAX_LEN 65535
+
 /**
  * @brief 属性的类型, 增加属性的时候需要修改value.cpp的ATTR_TYPE_NAME表
  * 
@@ -69,7 +71,7 @@ public:
       case BOOLEANS: {
         return num_value_.bool_value_ != other.num_value_.bool_value_;
       }break;
-      case CHARS: {
+      case TEXTS: case CHARS: {
         return str_value_ != other.str_value_;
       }break;
       case FLOATS: {
@@ -89,7 +91,7 @@ public:
     case FLOATS: {
       return std::hash<float>{}(obj.get_float());
     }break;
-    case CHARS: {
+    case CHARS: case TEXTS: {
       return std::hash<std::string>{}(obj.get_string());
     }break;
     }
@@ -117,6 +119,7 @@ public:
   void set_boolean(bool val);
   void set_null();
   void set_string(const char *s, int len = 0);
+  void set_text(const char *s);
   void set_date(int32_t date);
   void set_value(const Value &value);
 
@@ -148,6 +151,7 @@ public:
   int get_int() const;
   float get_float() const;
   std::string get_string() const;
+  std::string get_text() const;
   bool get_boolean() const;
   /**
    * @return 当获取失败时，返回-1
@@ -171,3 +175,4 @@ RC str_to_target(Value& value, AttrType target);
 RC ints_to_target(Value& value, AttrType target);
 RC floats_to_target(Value& value, AttrType target);
 RC dates_to_target(Value& value, AttrType target);
+RC texts_to_target(Value& value, AttrType target);
