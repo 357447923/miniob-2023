@@ -14,7 +14,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <string.h>
 #include <string>
-
+#include <unordered_map>
 #include "resolve_stage.h"
 
 #include "common/conf/ini.h"
@@ -25,6 +25,7 @@ See the Mulan PSL v2 for more details. */
 #include "event/session_event.h"
 #include "session/session.h"
 #include "sql/stmt/stmt.h"
+#include "sql/stmt/update_stmt.h"
 
 using namespace common;
 

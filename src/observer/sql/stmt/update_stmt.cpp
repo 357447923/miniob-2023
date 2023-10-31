@@ -18,11 +18,38 @@ See the Mulan PSL v2 for more details. */
 #include "storage/db/db.h"
 #include "storage/table/table.h"
 
-UpdateStmt::UpdateStmt(Table *table, const Value *values, int value_amount, FilterStmt *filter_stmt, const std::string& attribute_name)
-    : table_(table), values_(values), value_amount_(value_amount), filter_stmt_(filter_stmt), attribute_name_(attribute_name)
-{}
+RC checkAndCastValue(Value &value,const FieldMeta *field_meta) {
+  const AttrType value_type = value.attr_type();
+  if (value_type == NULLS) {
+    if (field_meta->not_null()) {
+      LOG_ERROR("You can't put NULL to an not null field");
+      return RC::SCHEMA_FIELD_NOT_NULL;
+    }
+  } else {
+    const AttrType field_type = field_meta->type();
+    if (field_type != value_type) {
+      // 对update.value进行数据类型转换
+      RC rc = common::type_cast(value, field_meta->type());
+      if (rc != RC::SUCCESS) {
+        LOG_WARN("field type mismatch. field=%s, field_type=%d, value_type=%d",
+            field_meta->name(), field_type, value_type);
+        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+      }
+    }
+  }
+  return RC::SUCCESS;  
+}
 
-RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
+UpdateStmt::UpdateStmt(Table *table,  
+                       int value_amount, 
+                       FilterStmt *filter_stmt,  
+                       std::unordered_map <std::string, Value*> &update_map)
+    : table_(table), value_amount_(value_amount), filter_stmt_(filter_stmt)
+{
+  update_map_.swap(update_map);
+}
+
+RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
 {
   // 检查db和表名合法性
   const char *table_name = update.relation_name.c_str();
@@ -41,34 +68,23 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
 
   // 检查更新的字段合法性
   const TableMeta &table_meta = table->table_meta();
-  const FieldMeta *field_meta = table_meta.field(update.attribute_name.c_str());
-  if (nullptr == field_meta) {
-    LOG_WARN("no such field. table_name=%s, field=%s", table_name, update.attribute_name.c_str());
-    return RC::SCHEMA_FIELD_NOT_EXIST;
-  }
-
-  // 这里由于UpdateSqlNode中仅仅只有一个value
-  // 所以也仅仅支持一个字段的更新
-  const AttrType value_type = update.value.attr_type();
-  if (value_type == NULLS) {
-    if (field_meta->not_null()) {
-      LOG_ERROR("You can't put NULL to an not null field");
-      return RC::SCHEMA_FIELD_NOT_NULL;
-    }
-  }else {
-    const AttrType field_type = field_meta->type();
-    if (field_type != value_type) {
-      // 对update.value进行数据类型转换     // TODO 把数据类型转换做的不那么随意些，可以参考MySQL的隐式类型转换
-      Value& value = const_cast<Value&>(update.value);
-      RC rc = common::type_cast(value, field_meta->type());
-      if (rc != RC::SUCCESS) {
-        LOG_WARN("field type mismatch. table=%s, field=%s, field_type=%d, value_type=%d",
-            table_name, field_meta->name(), field_type, value_type);
-        return RC::SCHEMA_FIELD_TYPE_MISMATCH;
+  std::vector<SetClauseSqlNode> &set_clause_list= update.set_clause_list;
+  std::unordered_map <std::string, Value*> update_map;
+  for (SetClauseSqlNode &setClause : set_clause_list)
+  {
+      const FieldMeta *field_meta = table_meta.field(setClause.attribute_name_.c_str());
+      if (nullptr == field_meta) {
+        LOG_WARN("no such field. table_name=%s, field=%s", table_name, setClause.attribute_name_.c_str());
+        return RC::SCHEMA_FIELD_NOT_EXIST;
+      } 
+      Value &tempValue = setClause.value_;
+      RC rc = checkAndCastValue(tempValue,field_meta);
+      if (rc!=RC::SUCCESS)
+      {
+        return rc;
       }
-    }
+      update_map[setClause.attribute_name_.c_str()] = &(setClause.value_);
   }
-  
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(update.relation_name, table));
   std::vector<Table *> tables;
@@ -81,8 +97,7 @@ RC UpdateStmt::create(Db *db, const UpdateSqlNode &update, Stmt *&stmt)
     LOG_WARN("failed to create filter statement. rc=%d:%s", rc, strrc(rc));
     return rc;
   }
-  // count为1是因为update中只有一个value
-  stmt = new UpdateStmt(table, &update.value, 1, filter_stmt, update.attribute_name);
+  stmt = new UpdateStmt(table, set_clause_list.size(), filter_stmt, update_map);
   return RC::SUCCESS;
 }
 

@@ -27,6 +27,7 @@ See the Mulan PSL v2 for more details. */
 #include "net/server.h"
 #include "net/communicator.h"
 #include "session/session.h"
+#include "event/sql_debug.h"
 
 using namespace common;
 
@@ -131,6 +132,7 @@ void SessionStage::handle_request(StageEvent *event)
  */
 RC SessionStage::handle_sql(SQLStageEvent *sql_event)
 {
+  sql_debug("sql: %s",sql_event->sql().c_str());
   // 查询缓存阶段，在框架简介中并不存在这一步(目前只返回RC::SUCCESS)
   RC rc = query_cache_stage_.handle_request(sql_event);
   if (OB_FAIL(rc)) {

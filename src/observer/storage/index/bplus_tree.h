@@ -125,8 +125,9 @@ public:
 
   int operator()(const char *v1, const char *v2) const
   {
+
     int result = attr_comparator_(v1, v2);
-    if (result != 0) {
+    if (indextype_ == IndexType::UNIQUE_IDX || result != 0) {
       return result;
     }
 

@@ -234,7 +234,7 @@ void Frame::pin()
   intptr_t xid = get_default_debug_xid();
   int pin_count = ++pin_count_;
 
-  LOG_DEBUG("after frame pin. "
+  LOG_TRACE("after frame pin. "
             "this=%p, write locker=%lx, read locker has xid %d? pin=%d, fd=%d, pageNum=%d, xid=%lx, lbt=%s",
             this, write_locker_, read_lockers_.find(xid) != read_lockers_.end(), 
             pin_count, file_desc_, page_.page_num, xid, lbt());
