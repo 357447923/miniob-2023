@@ -652,5 +652,5 @@ private:
 
   std::vector<FieldExpr *> field_exprs_;
   std::vector<AggrFuncExpr *> aggr_func_exprs_;
-  Tuple *tuple_;
+  Tuple *tuple_ = nullptr;
 };

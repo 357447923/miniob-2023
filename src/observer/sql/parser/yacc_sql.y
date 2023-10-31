@@ -157,6 +157,9 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   std::vector<OrderSqlNode> *       order_condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<SetClauseSqlNode> *   set_clause_list;
+  SetClauseSqlNode *                set_clause;
+  std::vector<RelAttrSqlNode> *     func_attr_list;
   RelationAndConditionTempList*     relationAndConditionTempList;
   std::vector<std::string> *        index_attr_list;
   char *                            string;
@@ -195,6 +198,9 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <rel_attr>            group_item
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
+%type <set_clause>          set_clause
+%type <set_clause_list>     set_clause_list
+
 
 
 %type <rel_attr_list>       attr_list
@@ -332,10 +338,28 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       }
       create_index.attribute_names.push_back($7);
       std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
-      create_index.index_type = "NOMAL_INDEX";
+      create_index.index_type = "NORMAL";
       free($3);
       free($5);
       free($7);
+    }
+    | CREATE ID INDEX ID ON ID LBRACE ID idx_attr_list RBRACE
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
+      CreateIndexSqlNode &create_index = $$->create_index;
+      create_index.index_name = $4;
+      create_index.relation_name = $6;
+      if ($9 != nullptr) {
+        create_index.attribute_names.swap(*$9);
+        delete $9;
+      }
+      create_index.attribute_names.push_back($8);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+      create_index.index_type = $2;
+      free($2);
+      free($4);
+      free($6);
+      free($8);
     }
     ;
 
@@ -586,32 +610,52 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET set_clause_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      if ($4 != nullptr) {
+        $$->update.set_clause_list.swap(*$4);
+        delete $4;
+      }     
+      if ($5 != nullptr) {
+        $$->update.conditions.swap(*$5);
+        delete $5;
       }
       free($2);
-      free($4);
     }
-    | UPDATE ID SET ID EQ '-' value where
+
+set_clause_list: /*set 子句列表*/
+    set_clause COMMA set_clause_list
     {
-      $$ = new ParsedSqlNode(SCF_UPDATE);
-      modify_2_negative($7);
-      $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$7;
-      if ($8 != nullptr) {
-        $$->update.conditions.swap(*$8);
-        delete $8;
+      if($3 != nullptr) {
+        $$ = $3;
+        $$->push_back(*$1);
+      } else {
+        $$ = new std::vector<SetClauseSqlNode>;
+        $$->push_back(*$1);
       }
-      free($2);
-      free($4);
+    }
+    | set_clause
+    {
+      $$ = new std::vector<SetClauseSqlNode>;
+      $$->push_back(*$1);
+    }
+    ;
+
+set_clause: /* 单个set子句*/
+    ID EQ value
+    {
+      $$ = new SetClauseSqlNode;
+      $$->attribute_name_ = $1;
+      $$->value_ = *$3;
+    }
+    | ID EQ '-' value
+    {
+      $$ = new SetClauseSqlNode;
+      modify_2_negative($4);
+      $$->attribute_name_ = $1;
+      $$->value_ = *$4;
     }
     ;
 

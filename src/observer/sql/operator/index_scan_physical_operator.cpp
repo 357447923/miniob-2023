@@ -15,7 +15,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/index_scan_physical_operator.h"
 #include "storage/index/index.h"
 #include "storage/trx/trx.h"
-
+#include "event/sql_debug.h"
 IndexScanPhysicalOperator::IndexScanPhysicalOperator(
     Table *table, Index *index, bool readonly, 
     const Value *left_value, bool left_inclusive, 
@@ -39,7 +39,7 @@ RC IndexScanPhysicalOperator::open(Trx *trx)
   if (nullptr == table_ || nullptr == index_) {
     return RC::INTERNAL;
   }
-
+  sql_debug("use index:%s",index_->index_meta().name());
   IndexScanner *index_scanner = index_->create_scanner(left_value_.data(),
       left_value_.length(),
       left_inclusive_,

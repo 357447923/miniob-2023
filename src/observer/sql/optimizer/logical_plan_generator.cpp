@@ -349,12 +349,16 @@ RC LogicalPlanGenerator::create_plan(
 
 RC LogicalPlanGenerator::create_plan(UpdateStmt* update_stmt, std::unique_ptr<LogicalOperator>& logical_operator) {
     Table* table = update_stmt->table();
-    // int count = update_stmt->value_amount();
+    int count = update_stmt->value_amount();
 
     // 找到要修改的字段来生成执行计划
-    const FieldMeta* field_meta = table->table_meta().field(update_stmt->attribute_name().c_str());
     vector<Field> fields;
-    fields.push_back(Field(table, field_meta));
+    for (const auto& pair : update_stmt->update_map()) {
+        const std::string& attribute_name = pair.first;
+        Value* value = pair.second; 
+        const FieldMeta* field_meta = table->table_meta().field(attribute_name.c_str());
+        fields.push_back(Field(table, field_meta));
+    }
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false));
 
     // 过滤执行计划
@@ -363,8 +367,7 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt* update_stmt, std::unique_ptr<Lo
     if (rc != RC::SUCCESS) {
         return rc;
     }
-
-    unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, *update_stmt->values(), update_stmt->attribute_name().c_str()));
+    unique_ptr<LogicalOperator> update_oper(new UpdateLogicalOperator(table, update_stmt->update_map()));
     if (predicate_oper) {
         predicate_oper->add_child(std::move(table_get_oper));
         update_oper->add_child(std::move(predicate_oper));

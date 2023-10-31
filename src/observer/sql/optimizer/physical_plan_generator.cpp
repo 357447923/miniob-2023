@@ -16,6 +16,8 @@ See the Mulan PSL v2 for more details. */
 
 #include "common/log/log.h"
 #include "sql/expr/expression.h"
+#include "sql/stmt/select_stmt.h"
+#include "sql/stmt/filter_stmt.h"
 #include "sql/operator/calc_logical_operator.h"
 #include "sql/operator/calc_physical_operator.h"
 #include "sql/operator/delete_logical_operator.h"
@@ -96,19 +98,54 @@ RC PhysicalPlanGenerator::create(LogicalOperator& logical_operator, unique_ptr<P
     }
   return rc;
 }
+// 仅仅支持where子句中的子查询
+RC PhysicalPlanGenerator::create_subquery(Expression *expr) {
+  assert(expr != nullptr);
+  if (expr->type() != ExprType::SUBQUERY) {
+    return RC::SUCCESS;
+  }
+  SubQueryExpr *subquery_expr = (SubQueryExpr *)expr;
+  if (subquery_expr->sub_query_operator()) {
+    return RC::SUCCESS;
+  }
+  FilterStmt *sub_filter_stmt = subquery_expr->select_stmt()->filter_stmt();
+  if (sub_filter_stmt) {
+    const std::vector<FilterUnit *> &filter_units = sub_filter_stmt->filter_units();
+    RC rc = RC::SUCCESS;
+    for (auto &unit : filter_units) {
+      const FilterObj &left = unit->left();
+      if (left.is_attr) {
+        rc = create_subquery(left.expression);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+      const FilterObj &right = unit->right();
+      if (right.is_attr) {
+        rc = create_subquery(right.expression);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+      }
+    }
+  }
+  unique_ptr<PhysicalOperator> subquery_phy_oper;
+  RC rc = create_plan(*subquery_expr->sub_query_logical(), subquery_phy_oper);
+  if (rc != RC::SUCCESS) {
+      LOG_ERROR("subquery physical operator create error, please check by debug");
+      return rc;
+  }
+  subquery_expr->set_sub_query_operator(static_cast<ProjectPhysicalOperator *>(subquery_phy_oper.get()));
+  subquery_phy_oper.release();
+  return RC::SUCCESS;
+}
 
 RC PhysicalPlanGenerator::create_subquery(unique_ptr<Expression> &expr) {
   // 处理过滤条件中的子查询, 用子查询的逻辑算子创建出物理算子
+  RC rc = RC::SUCCESS;
   if (expr->type() == ExprType::SUBQUERY) {
     SubQueryExpr *subquery_expr = static_cast<SubQueryExpr *>(expr.get());
-    unique_ptr<PhysicalOperator> subquery_phy_oper;
-    RC rc = create_plan(*subquery_expr->sub_query_logical(), subquery_phy_oper);
-    if (rc != RC::SUCCESS) {
-      LOG_ERROR("subquery physical operator create error, please check by debug");
-      return rc;
-    }
-    subquery_expr->set_sub_query_operator(static_cast<ProjectPhysicalOperator *>(subquery_phy_oper.get()));
-    subquery_phy_oper.release();
+    create_subquery(subquery_expr);
   }
   return RC::SUCCESS;
 }
@@ -211,6 +248,27 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
   return RC::SUCCESS;
 }
 
+RC PhysicalPlanGenerator::create_child_subquery_for_comparison(ComparisonExpr *expr) {
+  RC rc = RC::SUCCESS;
+  std::unique_ptr<Expression> &left_sub_query = expr->left();
+  if (left_sub_query->type() == ExprType::SUBQUERY) {
+    rc = create_subquery(left_sub_query);
+  }
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("create sub query physical operator error");
+    return rc;
+  }
+  std::unique_ptr<Expression> &right_sub_query = expr->right();
+  if (right_sub_query->type() == ExprType::SUBQUERY) {
+    rc = create_subquery(right_sub_query);
+  }
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("create sub query physical operator error");
+    return rc;
+  }
+  return rc;
+}
+
 RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, unique_ptr<PhysicalOperator> &oper)
 {
   vector<unique_ptr<LogicalOperator>> &children_opers = pred_oper.children();
@@ -231,21 +289,17 @@ RC PhysicalPlanGenerator::create_plan(PredicateLogicalOperator &pred_oper, uniqu
   unique_ptr<Expression> expression = std::move(expressions.front());
   if (expression->type() == ExprType::COMPARISON) {
     ComparisonExpr *expr = (ComparisonExpr *)expression.get();
-    std::unique_ptr<Expression> &sub_query = expr->left();
-    if (sub_query->type() == ExprType::SUBQUERY) {
-      rc = create_subquery(sub_query);
-    }else {
-      std::unique_ptr<Expression> &sub_query = expr->right();
-      rc = create_subquery(sub_query);
-    }
+    rc = create_child_subquery_for_comparison(expr);
     if (rc != RC::SUCCESS) {
-      LOG_ERROR("create sub query physical operator error");
       return rc;
     }
   }else if (expression->type() == ExprType::CONJUNCTION) {
+    // 似乎对于联结表达式来说，子表达式永远都是比较表达式
+    // 下面的断言用来证明这个猜想
     ConjunctionExpr *expr = (ConjunctionExpr *)expression.get();
     for (auto &expression : expr->children()) {
-      rc = create_subquery(expression);
+      assert(expression->type() == ExprType::COMPARISON);
+      rc = create_child_subquery_for_comparison((ComparisonExpr *)expression.get());
       if (rc != RC::SUCCESS) {
         LOG_ERROR("create sub query physical operator error");
         return rc;
@@ -356,7 +410,7 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator& update_oper, std::u
             return rc;
         }
     }
-    oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(update_oper.table(), update_oper.value(), update_oper.field_name()));
+    oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(update_oper.table(), update_oper.update_map()));
     if (child_physical_oper) {
         oper->add_child(std::move(child_physical_oper));
     }

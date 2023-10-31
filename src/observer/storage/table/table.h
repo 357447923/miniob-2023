@@ -80,11 +80,13 @@ public:
   RC insert_record(Record &record);
   RC delete_record(const Record &record);
   RC visit_record(const RID &rid, bool readonly, std::function<void(Record &)> visitor);
-  RC update_record(Record &record, int offset, int index, Value &value);
+  RC update_record(Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values);
   RC get_record(const RID &rid, Record &record);
-
+  
   RC recover_insert_record(Record &record);
-
+  RC rollback_update();
+  void delete_cache_record();
+  
   // TODO refactor
   RC create_index(Trx *trx, const std::vector<FieldMeta> field_metas, const char *index_name, IndexType indexType);
 
@@ -113,11 +115,20 @@ private:
 public:
   Index *find_index(const char *index_name) const;
   Index *find_index_by_field(const char *field_name) const;
-
+  std::vector<Index *> indexs() const;
 private:
   std::string base_dir_;
   TableMeta   table_meta_;
   DiskBufferPool *data_buffer_pool_ = nullptr;   /// 数据文件关联的buffer pool
   RecordFileHandler *record_handler_ = nullptr;  /// 记录操作
   std::vector<Index *> indexes_;                 /// 索引
+
+  // 以下几个字段为了更新失败时的回滚操作，暂时放在这里
+  std::vector<Record> old_records; // 记录被修改过的 record (拷贝)
+  std::vector<Record> inserted_records; //记录已经从插入的 record
+
+  std::vector<std::vector<Value>> old_values;// 原来的值
+  std::vector<std::vector<int>> old_index;
+  std::vector<std::vector<size_t>> change_value_offsets; // 记录被修修改的字段的偏移量
+
 };
