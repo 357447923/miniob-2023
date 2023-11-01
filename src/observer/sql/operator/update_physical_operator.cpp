@@ -96,10 +96,10 @@ RC UpdatePhysicalOperator::next() {
           return RC::INTERNAL;
         }
       }
-
-      if (value.attr_type() != field->type()) {
-          LOG_INFO("value attr_type: %d, expect: %d", field->type());
-          return RC::INTERNAL;
+      AttrType type = value.attr_type();
+      if ((type == NULLS && field->not_null()) && type != field->type()) {
+        LOG_INFO("value attr_type: %d, expect: %d", field->type());
+        return RC::INTERNAL;
       }
       values.push_back(std::move(value));
     }
