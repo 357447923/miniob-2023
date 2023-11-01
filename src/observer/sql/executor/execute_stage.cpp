@@ -99,7 +99,7 @@ static void handle_request_when_physical_is_select(TupleSchema &schema, SelectSt
       }break;
       case ExprType::ARITHMETIC: {
         const char *alias = expressions[i]->alias();
-        schema.append_cell(alias? alias: expressions[i]->name().c_str());
+        schema.append_cell(TupleCellSpec(NO_FUNC, expressions[i], alias? alias: expressions[i]->name().c_str()));
       }break;
       case ExprType::FUNC: {
         FuncExpr *func_expr = static_cast<FuncExpr *>(expressions[i]);
