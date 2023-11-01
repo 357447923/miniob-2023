@@ -680,6 +680,8 @@ RC AggrFuncExpr::try_get_value(Value &value) const {
 // AggrFuncExpr end...
 ////////////////////////////////////////////////////
 
+SubQueryExpr::SubQueryExpr(SelectStmt *select_stmt) : select_stmt_(select_stmt) {}
+
 SubQueryExpr::~SubQueryExpr() {
   if (select_stmt_ != nullptr) {
       delete select_stmt_;

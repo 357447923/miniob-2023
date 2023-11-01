@@ -410,6 +410,22 @@ RC PhysicalPlanGenerator::create_plan(UpdateLogicalOperator& update_oper, std::u
             return rc;
         }
     }
+    // 构建子查询的物理算子
+    for (auto &pair : update_oper.update_map()) {
+      Expression *expr = pair.second;
+      if (expr->type() == ExprType::SUBQUERY) {
+        SubQueryExpr *sub_query = static_cast<SubQueryExpr *>(expr);
+        unique_ptr<PhysicalOperator> sub_query_physical_operator;
+        rc = create_plan(*sub_query->sub_query_logical(), sub_query_physical_operator);
+        if (rc != RC::SUCCESS) {
+          LOG_INFO("create subquery fail. file: %s, line: %d", __FILE__, __LINE__);
+          return rc;
+        }
+        // 让表达式管理逻辑算子
+        sub_query->set_sub_query_operator(static_cast<ProjectPhysicalOperator *>(sub_query_physical_operator.get()));
+        sub_query_physical_operator.release();
+      }
+    }
     oper = unique_ptr<PhysicalOperator>(new UpdatePhysicalOperator(update_oper.table(), update_oper.update_map()));
     if (child_physical_oper) {
         oper->add_child(std::move(child_physical_oper));

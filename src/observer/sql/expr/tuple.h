@@ -251,7 +251,6 @@ public:
   }
   // 把get_record全部实现
   RC get_record(std::vector<Record *> &records) const override {
-    // TODO 测试一下如果非自行管理, 这个record的值是否还正常
     records.push_back(new Record(*record_));
     return RC::SUCCESS;
   }

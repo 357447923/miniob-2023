@@ -347,17 +347,34 @@ RC LogicalPlanGenerator::create_plan(
     return RC::SUCCESS;
 }
 
+
+
 RC LogicalPlanGenerator::create_plan(UpdateStmt* update_stmt, std::unique_ptr<LogicalOperator>& logical_operator) {
     Table* table = update_stmt->table();
     int count = update_stmt->value_amount();
 
     // 找到要修改的字段来生成执行计划
     vector<Field> fields;
+    vector<SubQueryExpr *> need_to_create_logical_plan;
     for (const auto& pair : update_stmt->update_map()) {
         const std::string& attribute_name = pair.first;
-        Value* value = pair.second; 
         const FieldMeta* field_meta = table->table_meta().field(attribute_name.c_str());
         fields.push_back(Field(table, field_meta));
+        Expression *expr = pair.second;
+        if (expr->type() == ExprType::SUBQUERY) {
+            need_to_create_logical_plan.push_back(static_cast<SubQueryExpr *>(expr));
+        }
+    }
+    for (auto &sub_query : need_to_create_logical_plan) {
+        unique_ptr<LogicalOperator> sub_query_logical_oper;
+        RC rc = create_plan(sub_query->select_stmt(), sub_query_logical_oper);
+        if (rc != RC::SUCCESS) {
+            LOG_ERROR("create subquery logical operator fail. rc=%s", strrc(rc));
+            return rc;
+        }
+        sub_query->set_sub_query_logical(static_cast<ProjectLogicalOperator *>(sub_query_logical_oper.get()));
+        // 把逻辑算子交给sub_query表达式管理
+        sub_query_logical_oper.release();
     }
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false));
 

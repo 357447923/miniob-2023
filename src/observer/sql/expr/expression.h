@@ -444,7 +444,7 @@ private:
 class SubQueryExpr : public Expression {
 public:
   SubQueryExpr() = default;
-
+  SubQueryExpr(SelectStmt *select_stmt);
   ~SubQueryExpr();
 
   RC get_value(const Tuple &tuple, Value &value) const override;
