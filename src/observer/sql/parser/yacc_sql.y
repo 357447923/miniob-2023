@@ -143,6 +143,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
   OrderSqlNode *                    order_condition;
+  SelectSqlNode *                   sub_select;
   Value *                           value;
   enum CompOp                       comp;
   enum FuncType                     func;
@@ -201,7 +202,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <relation_list>       rel_list
 %type <set_clause>          set_clause
 %type <set_clause_list>     set_clause_list
-
+%type <sub_select>          sub_query
 
 
 %type <rel_attr_list>       attr_list
@@ -655,6 +656,8 @@ set_clause: /* 单个set子句*/
       $$ = new SetClauseSqlNode;
       $$->attribute_name_ = $1;
       $$->value_ = *$3;
+      free($1);
+      delete $3;
     }
     | ID EQ '-' value
     {
@@ -662,6 +665,14 @@ set_clause: /* 单个set子句*/
       modify_2_negative($4);
       $$->attribute_name_ = $1;
       $$->value_ = *$4;
+      free($1);
+      delete $4;
+    }
+    | ID EQ sub_query {
+      $$ = new SetClauseSqlNode;
+      $$->attribute_name_ = $1;
+      $$->sub_query_.reset($3);
+      free($1);
     }
     ;
 
@@ -998,8 +1009,26 @@ rel_attr:
       }
     }
     // 子查询
-    | LBRACE SELECT rel_attr alias FROM ID alias rel_condition_list where group order having RBRACE {
+    | sub_query {
       $$ = new RelAttrSqlNode;
+      $$->sub_query.reset($1);
+    }
+    // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
+    | LBRACE value value_list RBRACE %prec UMINUS {
+      $$ = new RelAttrSqlNode;
+      if ($3 == nullptr) {
+        $3 = new std::vector<Value>;
+      }
+      $3->push_back(*$2);
+      delete $2;
+      $$->expression = new ListQueryExpr(*$3);
+      delete $3;
+    }
+    ;
+
+sub_query:
+    LBRACE SELECT rel_attr alias FROM ID alias rel_condition_list where group order having RBRACE 
+    {
       SelectSqlNode *sub_query = new SelectSqlNode;
       $3->alias.reset($4);
       sub_query->attributes.push_back(*$3);
@@ -1030,24 +1059,10 @@ rel_attr:
         sub_query->havings.swap(*$12);
         delete $12;
       }
-      $$->sub_query = std::shared_ptr<SelectSqlNode>(sub_query);
+      $$ = sub_query;
       delete $3;
       free($6);
     }
-    // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
-    | LBRACE value value_list RBRACE %prec UMINUS {
-      $$ = new RelAttrSqlNode;
-      if ($3 == nullptr) {
-        $3 = new std::vector<Value>;
-      }
-      $3->push_back(*$2);
-      delete $2;
-      $$->expression = new ListQueryExpr(*$3);
-      delete $3;
-    }
-    ;
-
-
 
 attr_list:
     /* empty */

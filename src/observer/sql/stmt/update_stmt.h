@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/stmt/filter_stmt.h"
 
 class Table;
+class Expression;
 
 /**
  * @brief 更新语句
@@ -28,7 +29,8 @@ class UpdateStmt : public Stmt
 {
 public:
   UpdateStmt() = default;
-  UpdateStmt(Table *table, int value_amount, FilterStmt *filter_stmt, std::unordered_map <std::string, Value*>&);
+  UpdateStmt(Table *table, int value_amount, FilterStmt *filter_stmt, std::unordered_map <std::string, Expression *>&);
+  ~UpdateStmt();
 
   StmtType type() const override {
     return StmtType::UPDATE;
@@ -42,7 +44,7 @@ public:
   {
     return table_;
   }
-  const std::unordered_map <std::string, Value*> update_map() const
+  const std::unordered_map <std::string, Expression *> update_map() const
   {
     return update_map_;
   }
@@ -58,5 +60,5 @@ private:
   Table *table_ = nullptr;
   int value_amount_ = 0;
   FilterStmt *filter_stmt_ = nullptr;
-  std::unordered_map <std::string, Value*> update_map_ ;
+  std::unordered_map <std::string, Expression *> update_map_ ;
 };

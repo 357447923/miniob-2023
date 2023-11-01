@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/typecast.h"
 #include "storage/db/db.h"
 #include "storage/table/table.h"
+#include "sql/stmt/select_stmt.h"
 
 RC checkAndCastValue(Value &value,const FieldMeta *field_meta) {
   const AttrType value_type = value.attr_type();
@@ -43,10 +44,17 @@ RC checkAndCastValue(Value &value,const FieldMeta *field_meta) {
 UpdateStmt::UpdateStmt(Table *table,  
                        int value_amount, 
                        FilterStmt *filter_stmt,  
-                       std::unordered_map <std::string, Value*> &update_map)
+                       std::unordered_map <std::string, Expression *> &update_map)
     : table_(table), value_amount_(value_amount), filter_stmt_(filter_stmt)
 {
   update_map_.swap(update_map);
+}
+
+UpdateStmt::~UpdateStmt() {
+  for (auto &pair : update_map_) {
+    delete pair.second;
+  }
+  update_map_.clear();
 }
 
 RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
@@ -69,21 +77,34 @@ RC UpdateStmt::create(Db *db, UpdateSqlNode &update, Stmt *&stmt)
   // 检查更新的字段合法性
   const TableMeta &table_meta = table->table_meta();
   std::vector<SetClauseSqlNode> &set_clause_list= update.set_clause_list;
-  std::unordered_map <std::string, Value*> update_map;
+  std::unordered_map <std::string, Expression*> update_map;
   for (SetClauseSqlNode &setClause : set_clause_list)
   {
       const FieldMeta *field_meta = table_meta.field(setClause.attribute_name_.c_str());
       if (nullptr == field_meta) {
         LOG_WARN("no such field. table_name=%s, field=%s", table_name, setClause.attribute_name_.c_str());
         return RC::SCHEMA_FIELD_NOT_EXIST;
-      } 
-      Value &tempValue = setClause.value_;
-      RC rc = checkAndCastValue(tempValue,field_meta);
-      if (rc!=RC::SUCCESS)
-      {
-        return rc;
       }
-      update_map[setClause.attribute_name_.c_str()] = &(setClause.value_);
+      Expression *expression;
+      if (setClause.sub_query_ == nullptr) {
+        Value &tempValue = setClause.value_;
+        RC rc = checkAndCastValue(tempValue,field_meta);
+        if (rc!=RC::SUCCESS)
+        {
+          return rc;
+        }
+        expression = new ValueExpr(setClause.value_);
+      }else {
+        const std::vector<Table *> tables;
+        const std::unordered_map<std::string, Table *> parent_table_map;
+        Stmt *stmt = nullptr;
+        RC rc = SelectStmt::create(db, *setClause.sub_query_, tables, parent_table_map, stmt);
+        if (rc != RC::SUCCESS) {
+          return rc;
+        }
+        expression = new SubQueryExpr(static_cast<SelectStmt *>(stmt));
+      }
+      update_map[setClause.attribute_name_.c_str()] = expression;
   }
   std::unordered_map<std::string, Table *> table_map;
   table_map.insert(std::pair<std::string, Table *>(update.relation_name, table));

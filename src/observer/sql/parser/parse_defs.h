@@ -175,6 +175,7 @@ struct SetClauseSqlNode
 {
   Value                         value_;                 ///< 更新的值
   std::string                   attribute_name_;        ///< 更新的字段
+  std::shared_ptr<SelectSqlNode> sub_query_;            ///< 子查询
 };
 
 /**
@@ -205,11 +206,8 @@ struct DeleteSqlNode
 struct UpdateSqlNode
 {
   std::string                   relation_name;         ///< Relation to update
-  // std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-  // Value                         value;                 ///< 更新的值，仅支持一个字段
   std::vector<ConditionSqlNode> conditions;
   std::vector<SetClauseSqlNode> set_clause_list;
-
 };
 
 /**

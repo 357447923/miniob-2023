@@ -7,9 +7,9 @@
 class UpdatePhysicalOperator : public PhysicalOperator {
 public:
 
-  UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Value*>);
+  UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Expression*>);
   
-  virtual ~UpdatePhysicalOperator() override;
+  virtual ~UpdatePhysicalOperator() override = default;
 
   PhysicalOperatorType type() const override {
       return PhysicalOperatorType::UPDATE;
@@ -23,7 +23,7 @@ public:
 
 private:
   Table * table_ = nullptr;
-  std::unordered_map<std::string, Value*> update_map_ ;
+  std::unordered_map<std::string, Expression *> update_map_ ;
   Trx *trx_ = nullptr;
 };
 

@@ -4,12 +4,10 @@
 #include "storage/index/index.h"
 #include "event/sql_debug.h"
 
-UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Value*> update_map) {
+UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Expression*> update_map) {
   table_ = table;
   update_map_= std::move(update_map);
 }
-
-UpdatePhysicalOperator::~UpdatePhysicalOperator() = default;
 
 RC UpdatePhysicalOperator::open(Trx *trx) {
   if (children_.empty()) {
@@ -58,14 +56,50 @@ RC UpdatePhysicalOperator::next() {
     std::vector<Value> values;
     for (const auto& pair : update_map_) {
       const std::string& field_name = pair.first;
-      Value* value = pair.second; 
+      Expression* expr = pair.second; 
       const FieldMeta *field = table_->table_meta().field(field_name.c_str(), index);
       int offset = field->offset();
       int len = field->len();
       offsets.push_back(offset);
       lens.push_back(len);
       indexs.push_back(index);
-      values.push_back(std::move(*value));
+      // 获取值，并且做类型检查, 子查询条目数检查
+      Value value;
+      if (expr->type() == ExprType::SUBQUERY) {
+        SubQueryExpr *sub_query = static_cast<SubQueryExpr *>(expr);
+        sub_query->set_trx(trx_);
+        sub_query->open_sub_query();
+        rc = expr->get_value(*tuple, value);
+        if (rc != RC::SUCCESS) {
+          LOG_INFO("get value fail.%s\t %d", __FILE__, __LINE__);
+          sub_query->close_sub_query();
+          return RC::INTERNAL;
+        }
+        Value tmp;
+        rc = expr->get_value(*tuple, tmp);
+        if (rc != RC::RECORD_EOF) {
+          if (rc == RC::SUCCESS) {
+            LOG_INFO("update can not receive mutiple value");
+          }else {
+            LOG_INFO("execption happen. file: %s, line: %d", __FILE__, __LINE__);
+          }
+          sub_query->close_sub_query();
+          return RC::INTERNAL;
+        }
+        sub_query->close_sub_query();
+      }else {
+        rc = expr->get_value(*tuple, value);
+        if (rc != RC::SUCCESS) {
+          LOG_INFO("get value fail.%s\t %d", __FILE__, __LINE__);
+          return RC::INTERNAL;
+        }
+      }
+
+      if (value.attr_type() != field->type()) {
+          LOG_INFO("value attr_type: %d, expect: %d", field->type());
+          return RC::INTERNAL;
+      }
+      values.push_back(std::move(value));
     }
     rc = trx_->update_record(table_, record, std::move(offsets), std::move(indexs), std::move(values), std::move(lens));
     if (rc != RC::SUCCESS) {

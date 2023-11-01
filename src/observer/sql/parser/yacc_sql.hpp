@@ -139,6 +139,7 @@ union YYSTYPE
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
   OrderSqlNode *                    order_condition;
+  SelectSqlNode *                   sub_select;
   Value *                           value;
   enum CompOp                       comp;
   enum FuncType                     func;
@@ -163,7 +164,7 @@ union YYSTYPE
   int                               number;
   float                             floats;
 
-#line 167 "yacc_sql.hpp"
+#line 168 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;
