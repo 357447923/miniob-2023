@@ -160,7 +160,7 @@ RC MvccTrx::insert_record(Table *table, Record &record)
   return rc;
 }
 
-RC MvccTrx::update_record(Table *table, Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values) {
+RC MvccTrx::update_record(Table *table, Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) {
   // RC rc = table->update_record(record, offsets, indexs, values);
   return RC::SUCCESS;
 }

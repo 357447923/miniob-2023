@@ -258,7 +258,7 @@ RC RecordPageHandler::delete_record(const RID *rid)
   }
 }
 
-RC RecordPageHandler::update_record(int offset, int index, Value &value, const Record &record) {
+RC RecordPageHandler::update_record(int offset, int index, Value &value, const Record &record, int len) {
   ASSERT(readonly_ == false, "cannot update record into page while the page is readonly");
   
   const RID &rid = record.rid();
@@ -293,7 +293,11 @@ RC RecordPageHandler::update_record(int offset, int index, Value &value, const R
   // TODO 判断更新后的字符串是否越界，并且如果字符串刚好为字符串的max_offset，则可以考虑不用存'\0'。而这不仅仅是修改这段代码
   // current: 字符串要包含'\0'一起拷贝
   int copy_len = value.attr_type() == CHARS? value.length() + 1: value.length();
-  memcpy(change_loc, data, copy_len);
+  // 如果len是默认值-1
+  if (len == -1 && len >= copy_len) {
+    len = copy_len;
+  }
+  memcpy(change_loc, data, len);
   frame_->mark_dirty();
 
   return RC::SUCCESS;
@@ -465,7 +469,7 @@ RC RecordFileHandler::recover_insert_record(const char *data, int record_size, c
   return record_page_handler.recover_insert_record(data, rid);
 }
 
-RC RecordFileHandler::update_record(int offset, int index, Value &value, const Record &record) {
+RC RecordFileHandler::update_record(int offset, int index, Value &value, const Record &record, int len) {
   RC rc = RC::SUCCESS;
 
   RecordPageHandler page_handler;
@@ -474,7 +478,7 @@ RC RecordFileHandler::update_record(int offset, int index, Value &value, const R
     return rc;
   }
   
-  rc = page_handler.update_record(offset, index, value, record);
+  rc = page_handler.update_record(offset, index, value, record, len);
   // TODO
 
   return rc;

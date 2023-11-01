@@ -43,7 +43,7 @@ public:
 
   RC insert_record(Table *table, Record &record) override;
   RC delete_record(Table *table, Record &record) override;
-  RC update_record(Table *table, Record &record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values) override;
+  RC update_record(Table *table, Record &record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) override;
   RC visit_record(Table *table, Record &record, bool readonly) override;
   RC start_if_need() override;
   RC commit() override;
