@@ -164,6 +164,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   std::vector<RelAttrSqlNode> *     func_attr_list;
   RelationAndConditionTempList*     relationAndConditionTempList;
   std::vector<std::string> *        index_attr_list;
+  SelectSqlNode *                   select_sql_node;
   char *                            string;
   int                               number;
   float                             floats;
@@ -222,6 +223,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <sql_node>            show_tables_stmt
 %type <sql_node>            desc_table_stmt
 %type <sql_node>            create_index_stmt
+%type <select_sql_node>     create_table_select
 %type <sql_node>            drop_index_stmt
 %type <sql_node>            sync_stmt
 %type <sql_node>            begin_stmt
@@ -407,26 +409,62 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       create_table.attr_infos.emplace_back(*$5);
       std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
       delete $5;
+      delete $6;
     }
     /* create-table-select*/
-    | CREATE TABLE ID AS select_stmt {
+    | CREATE TABLE ID create_table_select {
       $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
       CreateTableSqlNode &create_table = $$->create_table;
       create_table.relation_name = $3;
       free($3);
-      SelectSqlNode *node = new SelectSqlNode;
-      SelectSqlNode &select_sql_node = $5->selection;
-      node->attributes.swap(select_sql_node.attributes);
-      node->relations.swap(select_sql_node.relations);
-      node->join_conditions.swap(select_sql_node.join_conditions);
-      node->conditions.swap(select_sql_node.conditions);
-      node->groups.swap(select_sql_node.groups);
-      node->orders.swap(select_sql_node.orders);
-      node->havings.swap(select_sql_node.havings);
+      create_table.select_table.reset($4);
+    }
+    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE create_table_select {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+      create_table.select_table.reset($8);
+
+      std::vector<AttrInfoSqlNode> *src_attrs = $6;
+      if (src_attrs != nullptr) {
+        create_table.attr_infos.swap(*src_attrs);
+      }
+      create_table.attr_infos.emplace_back(*$5);
+      std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
       delete $5;
-      create_table.select_table.reset(node);
+      delete $6;
     }
     ;
+
+create_table_select:
+  select_stmt
+  {
+      $$ = new SelectSqlNode;
+      SelectSqlNode &select_sql_node = $1->selection;
+      $$->attributes.swap(select_sql_node.attributes);
+      $$->relations.swap(select_sql_node.relations);
+      $$->join_conditions.swap(select_sql_node.join_conditions);
+      $$->conditions.swap(select_sql_node.conditions);
+      $$->groups.swap(select_sql_node.groups);
+      $$->orders.swap(select_sql_node.orders);
+      $$->havings.swap(select_sql_node.havings);
+      delete $1;
+  }
+  | AS select_stmt 
+  {
+      $$ = new SelectSqlNode;
+      SelectSqlNode &select_sql_node = $2->selection;
+      $$->attributes.swap(select_sql_node.attributes);
+      $$->relations.swap(select_sql_node.relations);
+      $$->join_conditions.swap(select_sql_node.join_conditions);
+      $$->conditions.swap(select_sql_node.conditions);
+      $$->groups.swap(select_sql_node.groups);
+      $$->orders.swap(select_sql_node.orders);
+      $$->havings.swap(select_sql_node.havings);
+      delete $2;
+  }
+
 attr_def_list:
     /* empty */
     {
@@ -761,9 +799,9 @@ calc_stmt:
     ;
 
 simple_func_item:
-  func LBRACE value RBRACE {
+  func value RBRACE {
     // 这里的ValueExpr找不到合适的地方释放
-    ValueExpr *value_expr = new ValueExpr(std::move(*$3));
+    ValueExpr *value_expr = new ValueExpr(std::move(*$2));
     value_expr->set_name(value_expr->get_value().to_string());
     FuncExpr *expr = new FuncExpr($1, 1, value_expr, nullptr);
     $$ = new RelAttrSqlNode;
@@ -784,12 +822,12 @@ simple_func_item:
     name += value_expr->name();
     name += ")";
     expr->set_name(name);
-    delete $3;
+    delete $2;
   }
-  | func LBRACE value COMMA value RBRACE {
-    auto first = new ValueExpr(std::move(*$3));
+  | func value COMMA value RBRACE {
+    auto first = new ValueExpr(std::move(*$2));
     first->set_name(first->get_value().to_string());
-    auto second = new ValueExpr(std::move(*$5));
+    auto second = new ValueExpr(std::move(*$4));
     second->set_name(second->get_value().to_string());
     FuncExpr *expr = new FuncExpr($1, 2, first, second);
     $$ = new RelAttrSqlNode;
@@ -812,7 +850,7 @@ simple_func_item:
     name += second->name();
     name += ")";
     expr->set_name(name);
-    delete $3;
+    delete $2;
   }
   ;
 
@@ -884,31 +922,31 @@ expression:
       free($3);
       free($1);
     }
-    | agg_func LBRACE ID RBRACE {
+    | agg_func ID RBRACE {
       FieldExpr *field_expr = new FieldExpr;
-      field_expr->set_name(std::string($3));
+      field_expr->set_name(std::string($2));
       $$ = new AggrFuncExpr($1, field_expr);
-      free($3);
+      free($2);
     }
-    | agg_func LBRACE ID DOT ID RBRACE {
+    | agg_func ID DOT ID RBRACE {
       FieldExpr *field_expr = new FieldExpr;
-      field_expr->set_name(std::string($3).append(".").append(std::string($5)));
+      field_expr->set_name(std::string($2).append(".").append(std::string($4)));
       $$ = new AggrFuncExpr($1, field_expr);
-      free($3);
-      free($5);
+      free($2);
+      free($4);
     }
-    | agg_func LBRACE '*' RBRACE {
+    | agg_func '*' RBRACE {
       ValueExpr *expr = new ValueExpr(Value("*", 2));
       expr->set_name("*");
       $$ = new AggrFuncExpr($1, expr);
     }
-    | agg_func LBRACE number RBRACE {
-      ValueExpr *expr = new ValueExpr(Value($3));
-      expr->set_name(std::to_string($3));
+    | agg_func number RBRACE {
+      ValueExpr *expr = new ValueExpr(Value($2));
+      expr->set_name(std::to_string($2));
       $$ = new AggrFuncExpr($1, expr);
     }
-    | func LBRACE expression RBRACE {
-      $$ = new FuncExpr($1, 1, $3, nullptr);
+    | func expression RBRACE {
+      $$ = new FuncExpr($1, 1, $2, nullptr);
       std::string name;
       switch ($1) {
         case FUNC_LENGTH: {
@@ -921,12 +959,12 @@ expression:
           name += "DATE_FORMAT(";
         }break;
       }
-      name += $3->name();
+      name += $2->name();
       name += ")";
       $$->set_name(name);
     }
-    | func LBRACE expression COMMA expression RBRACE {
-      $$ = new FuncExpr($1, 2, $3, $5);
+    | func expression COMMA expression RBRACE {
+      $$ = new FuncExpr($1, 2, $2, $4);
       std::string name;
       switch ($1) {
         case FUNC_LENGTH: {
@@ -939,9 +977,9 @@ expression:
           name += "DATE_FORMAT(";
         }break;
       }
-      name += $3->name();
+      name += $2->name();
       name += ", ";
-      name += $5->name();
+      name += $4->name();
       name += ")";
       $$->set_name(name);
     }
@@ -986,7 +1024,7 @@ alias:
     | ID {
       $$ = $1;
     }
-    | AS ID %prec UMINUS {
+    | AS ID {
       $$ = $2;
     }
     ;

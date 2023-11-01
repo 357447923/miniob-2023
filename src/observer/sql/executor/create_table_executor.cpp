@@ -113,7 +113,7 @@ static RC handle_create_without_table(const TupleSchema &schema, CreateTableStmt
   if (table == nullptr) {
     return RC::SCHEMA_TABLE_NOT_EXIST;
   }
-  
+
   int bitmap_len = common::bitmap_size(schema.cell_num());
   int size = table->table_meta().record_size();
   rc = insert_record_to_table(table, size, bitmap_len, values);
@@ -155,6 +155,8 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
     LOG_ERROR("find first record fail when create table.");
     return rc;
   }
+  const std::vector<CreateTableInfo> &infos = create_table_stmt->attr_infos();
+  bool need_to_add = infos.empty();
 
   const std::vector<Table *> &tables = select_stmt->tables();
   // 处理没有from语句的情况，比如select FUNC('1111');
@@ -170,70 +172,81 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   Tuple *tuple = project->current_tuple();
   std::vector<Value> values;
   values.resize(schema.cell_num());
-  // 先做单表的试试看
+
   Table *table = nullptr;
-  for (int i = 0; i < schema.cell_num(); ++i) {
-    const TupleCellSpec &spec = schema.cell_at(i);
-    CreateTableInfo info;
-    const Expression *expr = spec.expression();
-    tuple->cell_at(i, values[i]);
-    if (expr) {
-      AttrType attr_type = expr->value_type();
-      if (attr_type == UNDEFINED || attr_type == BOOLEANS || attr_type == NULLS) {
-        LOG_ERROR("other type unimplenment");
-        return RC::INTERNAL;
-      }
-      if (attr_type != CHARS) {
-        init_create_table_info(attr_type, spec.to_string(), false, 4, info);
-        create_table_stmt->add_attr_info(info);
-        continue;
-      }
-      switch (expr->type()) {
-        case ExprType::FUNC: {
-          const FuncExpr *func_expr = static_cast<const FuncExpr *>(expr);
-          if (func_expr->func_type() != FUNC_DATE_FORMAT) {
-            LOG_ERROR("this func type unimplenment create table select");
-            return RC::INTERNAL;
-          }
-          Value &value = values[i];
-          init_create_table_info(CHARS, spec.to_string(), false, 74, info);
-          create_table_stmt->add_attr_info(info);
-        }break;
-        default: {
-          LOG_ERROR("this expr type unimplenment");
+  if (need_to_add) {
+    for (int i = 0; i < schema.cell_num(); ++i) {
+      const TupleCellSpec &spec = schema.cell_at(i);
+      CreateTableInfo info;
+      const Expression *expr = spec.expression();
+      tuple->cell_at(i, values[i]);
+      if (expr) {
+        AttrType attr_type = expr->value_type();
+        if (attr_type == UNDEFINED || attr_type == BOOLEANS || attr_type == NULLS) {
+          LOG_ERROR("other type unimplenment");
           return RC::INTERNAL;
         }
+        if (attr_type != CHARS) {
+          init_create_table_info(attr_type, spec.to_string(), false, 4, info);
+          create_table_stmt->add_attr_info(info);
+          continue;
+        }
+        switch (expr->type()) {
+          case ExprType::FUNC: {
+            const FuncExpr *func_expr = static_cast<const FuncExpr *>(expr);
+            if (func_expr->func_type() != FUNC_DATE_FORMAT) {
+              LOG_ERROR("this func type unimplenment create table select");
+              return RC::INTERNAL;
+            }
+            Value &value = values[i];
+            init_create_table_info(CHARS, spec.to_string(), false, 74, info);
+            create_table_stmt->add_attr_info(info);
+          }break;
+          default: {
+            LOG_ERROR("this expr type unimplenment");
+            return RC::INTERNAL;
+          }
+        }
+        continue;
       }
-      continue;
-    }
-    AggFuncType aggr_func = spec.aggfunc_type();
-    if (aggr_func != FUNC_NONE) {
-      const char *table_name = spec.table_name();
-      const char *field_name = spec.field_name();
-      if (!field_name) {
-        ValueExpr *value_expr = new ValueExpr;
-        AggrFuncExpr expr(aggr_func, value_expr);
+      AggFuncType aggr_func = spec.aggfunc_type();
+      if (aggr_func != FUNC_NONE) {
+        const char *table_name = spec.table_name();
+        const char *field_name = spec.field_name();
+        if (!field_name) {
+          ValueExpr *value_expr = new ValueExpr;
+          AggrFuncExpr expr(aggr_func, value_expr);
+          init_create_table_info(expr.value_type(), spec.to_string(), false, values[i].length(), info);
+          continue;
+        }
+        Table *table = nullptr;
+        if (tables.size() == 1) {
+          table = tables[0];
+        }else {
+          table = find_table(table_name, tables);
+        }
+        FieldExpr *field_expr = new FieldExpr(table, table->table_meta().field(field_name), aggr_func);
+        AggrFuncExpr expr(aggr_func, field_expr);
         init_create_table_info(expr.value_type(), spec.to_string(), false, values[i].length(), info);
         create_table_stmt->add_attr_info(info);
         continue;
       }
-      Table *table = nullptr;
-      if (tables.size() == 1) {
-        table = tables[0];
-      }else {
-        table = find_table(table_name, tables);
-      }
-      FieldExpr *field_expr = new FieldExpr(table, table->table_meta().field(field_name), aggr_func);
-      AggrFuncExpr expr(aggr_func, field_expr);
-      init_create_table_info(expr.value_type(), spec.to_string(), false, values[i].length(), info);
+      // 普通字段
+      handle_normal_field(spec, info, tables);
       create_table_stmt->add_attr_info(info);
-      continue;
     }
-    // 普通字段
-    handle_normal_field(spec, info, tables);
-    create_table_stmt->add_attr_info(info);
+  }else {
+    for (int i = 0; i < schema.cell_num(); ++i) {
+      RC rc = tuple->cell_at(i, values[i]);
+      if (rc != RC::SUCCESS) {
+        assert(false);
+      }
+      if (infos[i].type != values[i].attr_type()) {
+        return RC::INTERNAL;
+      }
+    }
   }
-  const std::vector<CreateTableInfo> &infos = create_table_stmt->attr_infos();
+
   rc = db->create_table(create_table_stmt->table_name().c_str(), infos.size(), infos.data());
   if (rc != RC::SUCCESS) {
     return rc;

@@ -29,6 +29,13 @@ RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt 
       delete create_table_stmt;
       return rc;
     }
+    std::vector<AttrInfoSqlNode> &attr_infos = create_table_stmt->attr_infos_;
+    if (!attr_infos.empty()) {
+      SelectStmt *select = static_cast<SelectStmt *>(select_stmt);
+      if (select->query_expressions().size() != attr_infos.size()) {
+        return RC::SQL_SYNTAX;
+      }
+    }
     create_table_stmt->select_stmt_ = static_cast<SelectStmt *>(select_stmt);
     create_table_stmt->db_ = db;
   }
