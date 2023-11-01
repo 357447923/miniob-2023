@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/date.h"
 #include "common/typecast.h"
 #include <regex>
+#include "cmath"
 
 const char *ATTR_TYPE_NAME[] = {
   [UNDEFINED] = "undefined", 
@@ -124,19 +125,21 @@ RC ints_to_target(Value& value, AttrType target) {
     return RC::SUCCESS;
   }
 
-  if (target != FLOATS) {
+  if (target != FLOATS && target != CHARS) {
     LOG_ERROR("Type: ints can't cast to %s", attr_type_to_string(target));
     return RC::TYPE_CAST_ERROR;
   }
 
-  value.set_float(value.get_int());
-/*
   switch (target) {
     case FLOATS:
       value.set_float(value.get_int());
       break;
+    case CHARS: {
+      std::string str = std::to_string(value.get_int());
+      value.set_string(str.c_str(), str.length());
+    } break;
   }
-*/
+
   return RC::SUCCESS;
 }
 
@@ -145,19 +148,22 @@ RC floats_to_target(Value& value, AttrType target) {
     return RC::SUCCESS;
   }
 
-  if (target != INTS) {
+  if (target != INTS && target != CHARS) {
     LOG_ERROR("Type: floats can't cast to %s", attr_type_to_string(target));
     return RC::TYPE_CAST_ERROR;
   }
 
-  value.set_int(value.get_float());
-/*
   switch (target) {
-  case INTS:
-    value.set_int((int)value.get_float());
-    break;
+  case INTS: {
+    int res = round(value.get_float());
+    value.set_int(res);
+  } break;
+  case CHARS: {
+    std::string str = std::to_string(value.get_float());
+    value.set_string(str.c_str(), str.length());
+  } break;
   }
-*/
+
 
   return RC::SUCCESS;
 }

@@ -3,6 +3,7 @@
 #include "storage/record/record.h"
 #include "storage/index/index.h"
 #include "event/sql_debug.h"
+#include "common/typecast.h"
 
 UpdatePhysicalOperator::UpdatePhysicalOperator(Table *table, std::unordered_map<std::string, Expression*> update_map) {
   table_ = table;
@@ -87,6 +88,7 @@ RC UpdatePhysicalOperator::next() {
           return RC::INTERNAL;
         }
         sub_query->close_sub_query();
+        common::type_cast(value, field->type());
       }else {
         rc = expr->get_value(*tuple, value);
         if (rc != RC::SUCCESS) {
