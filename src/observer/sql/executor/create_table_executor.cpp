@@ -56,13 +56,13 @@ static RC insert_record_to_table(Table *table, int size, int bitmap_len, std::ve
   Record record;
   char *data = (char *)malloc(size);
   record.set_data_owner(data, size, bitmap_len);
-  memset(data, 0, bitmap_len);
+  memset(data, 0, size);
   common::Bitmap bitmap(data, bitmap_len);
   data += bitmap_len;
   for (int i = 0; i < values.size(); ++i) {
     Value &val = values[i];
     if (val.is_null()) {
-      bitmap.clear_bit(i);
+      bitmap.set_bit(i);
       continue;
     }
     const char *val_data = val.data();
@@ -124,7 +124,8 @@ static RC handle_create_without_table(const TupleSchema &schema, CreateTableStmt
   return RC::RECORD_EOF;
 }
 
-static RC handle_normal_field(const TupleCellSpec &spec, CreateTableInfo &info, const std::vector<Table *> &tables) {
+static RC handle_normal_field(const TupleCellSpec &spec, CreateTableInfo &info, 
+    const std::vector<Table *> &tables) {
   Table *table;
   if (tables.size() == 1) {
     table = tables[0];
@@ -134,15 +135,16 @@ static RC handle_normal_field(const TupleCellSpec &spec, CreateTableInfo &info, 
       return RC::SCHEMA_TABLE_NOT_EXIST;
     }
   }
+  
   const TableMeta table_meta = table->table_meta();
   const FieldMeta *field_meta = table_meta.field(spec.field_name());
-  if (field_meta == nullptr) {
-    return RC::SCHEMA_FIELD_NOT_EXIST;
-  }
-  init_create_table_info(field_meta->type(), spec.to_string(), field_meta->not_null(), field_meta->len(), info);
+  const char *alias = spec.alias();
+  init_create_table_info(field_meta->type(), !common::is_blank(alias)? alias: field_meta->name(), field_meta->not_null(), field_meta->len(), info);
   return RC::SUCCESS;
 }
-
+/**
+ * @details 本方法bug多到难以想象
+ */
 RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   CreateTableStmt *create_table_stmt = oper->create_table_stmt();
   SelectStmt *select_stmt = create_table_stmt->select_stmt();
@@ -166,9 +168,6 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   }
   auto &project = oper->children()[0];
   rc = project->next();
-  if (rc != RC::SUCCESS) {
-    return rc;
-  }
   Tuple *tuple = project->current_tuple();
   std::vector<Value> values;
   values.resize(schema.cell_num());
