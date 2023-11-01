@@ -150,10 +150,10 @@ RC MvccTrx::insert_record(Table *table, Record &record)
   rc = log_manager_->append_log(CLogType::INSERT, trx_id_, table->table_id(), record.rid(), record.len(), 0/*offset*/, record.data());
   ASSERT(rc == RC::SUCCESS, "failed to append insert record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
-
+  // OperationSet::iterator: 迭代器，它指向 operations_ 集合中新插入的元素（如果插入成功）。bool:一个布尔值，表示插入操作是否成功。如果插入成功，这个布尔值为 true，否则为 false。
   pair<OperationSet::iterator, bool> ret = 
         operations_.insert(Operation(Operation::Type::INSERT, table, record.rid()));
-  if (!ret.second) {
+  if (!ret.second) { //插入失败
     rc = RC::INTERNAL;
     LOG_WARN("failed to insert operation(insertion) into operation set: duplicate");
   }
@@ -179,7 +179,7 @@ RC MvccTrx::delete_record(Table * table, Record &record)
     // 当前不是多版本数据中的最新记录，不需要删除
     return RC::SUCCESS;
   }
-  
+  // 如果 end_xid 等于当前事务的最大事务ID，表示当前记录是最新版本，可以进行删除操作。在这之前，会将结束字段的值设置为当前事务的ID的负值，以标记记录为已删除状态。
   end_field.set_int(record, -trx_id_);
   RC rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
   ASSERT(rc == RC::SUCCESS, "failed to append delete record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
@@ -196,23 +196,23 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
   Field end_field;
   trx_fields(table, begin_field, end_field);
 
-  int32_t begin_xid = begin_field.get_int(record);
-  int32_t end_xid = end_field.get_int(record);
+  int32_t begin_xid = begin_field.get_int(record); // 起始版本号
+  int32_t end_xid = end_field.get_int(record); // 结束版本号
 
   RC rc = RC::SUCCESS;
   if (begin_xid > 0 && end_xid > 0) {
     if (trx_id_ >= begin_xid && trx_id_ <= end_xid) {
-      rc = RC::SUCCESS;
+      rc = RC::SUCCESS;// trx_id_ >= begin xid && trx_id_ <= end xid -> 记录已经并且被提交,可以访问
     } else {
       rc = RC::RECORD_INVISIBLE;
     }
   } else if (begin_xid < 0) {
-    // begin xid 小于0说明是刚插入而且没有提交的数据
+    // begin xid < 0 -> 刚插入而且没有提交的数据
     rc = (-begin_xid == trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
   } else if (end_xid < 0) {
-    // end xid 小于0 说明是正在删除但是还没有提交的数据
+    // end xid < 0 -> 说明是正在删除但是还没有提交的数据
     if (readonly) {
-      // 如果 -end_xid 就是当前事务的事务号，说明是当前事务删除的
+      // end_xid = -trx_id_ -> 是当前事务删除的
       rc = (-end_xid != trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
     } else {
       // 如果当前想要修改此条数据，并且不是当前事务删除的，简单的报错
@@ -247,7 +247,7 @@ RC MvccTrx::start_if_need()
 {
   if (!started_) {
     ASSERT(operations_.empty(), "try to start a new trx while operations is not empty");
-    trx_id_ = trx_kit_.next_trx_id();
+    trx_id_ = trx_kit_.next_trx_id();// 分配一个事务id
     LOG_DEBUG("current thread change to new trx with %d", trx_id_);
     RC rc = log_manager_->begin_trx(trx_id_);
     ASSERT(rc == RC::SUCCESS, "failed to append log to clog. rc=%s", strrc(rc));
@@ -275,14 +275,14 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
         Table *table = operation.table();
         Field begin_xid_field, end_xid_field;
         trx_fields(table, begin_xid_field, end_xid_field);
-
+        // 定义了一个回调函数 record_updater，用于更新记录的开始版本号字段，将其设置为提交的版本号 commit_xid。
         auto record_updater = [ this, &begin_xid_field, commit_xid](Record &record) {
           LOG_DEBUG("before commit insert record. trx id=%d, begin xid=%d, commit xid=%d, lbt=%s",
                     trx_id_, begin_xid_field.get_int(record), commit_xid, lbt());
           ASSERT(begin_xid_field.get_int(record) == -this->trx_id_, 
                  "got an invalid record while committing. begin xid=%d, this trx id=%d", 
                  begin_xid_field.get_int(record), trx_id_);
-
+          // 设置起始事务 id 为 commit_xid
           begin_xid_field.set_int(record, commit_xid);
         };
 

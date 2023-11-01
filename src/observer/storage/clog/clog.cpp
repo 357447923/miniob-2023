@@ -95,7 +95,7 @@ int _align8(int size)
 }
 
 CLogRecord *CLogRecord::build_mtr_record(CLogType type, int32_t trx_id)
-{
+{ 
   CLogRecord *log_record = new CLogRecord();
   CLogRecordHeader &header = log_record->header_;
   header.trx_id_ = trx_id;
