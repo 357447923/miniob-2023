@@ -262,14 +262,14 @@ RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<in
     std::vector<int> temp_change_value_lens;
     for (size_t i = 0; i < values.size(); i++)
     {
-        Value oldValue = Value(record.data() + offsets[i], values[i].length());
+        Value oldValue = Value(record.data() + offsets[i], 4);
         rc = record_handler_->update_record(offsets[i], indexs[i], values[i], record, lens[i]);
         if (rc == RC::SUCCESS)
         {
             temp_values.push_back(std::move(oldValue));
             temp_old_index.push_back(indexs[i]);
             temp_change_value_offsets.push_back(offsets[i]);
-            temp_change_value_lens.push_back(offsets[i]);
+            temp_change_value_lens.push_back(lens[i]);
         }   
     }
     if (rc == RC::SUCCESS) {
@@ -383,6 +383,7 @@ void Table::delete_cache_record(){
     change_value_offsets.clear();
     old_records.clear();
     inserted_records.clear();
+    change_value_lens.clear();
 }
 
 const char* Table::name() const {

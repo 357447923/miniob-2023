@@ -181,6 +181,7 @@ const IndexMeta *TableMeta::index(const char *name) const
 const IndexMeta* TableMeta::find_index_by_field(const char* field) const {
   std::string field_name = field;
   std::vector<std::string> fields;
+  fields.push_back("bitmap");
   fields.push_back(field_name);
   for (const IndexMeta &index : indexes_) {
     if (fields == *index.fields()) {
