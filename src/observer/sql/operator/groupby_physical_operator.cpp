@@ -65,6 +65,10 @@ RC GroupByPhysicalOperator::next() {
     for (int i = 0; i < units_->size(); i++) {
       Value tmp;
       (*units_)[i]->expr()->get_value(*(children_[0]->current_tuple()), tmp);
+      // 分组列的值是NULL的话，属于同一个组
+      if (pre_group_val_[i].attr_type() == NULLS && tmp.attr_type() == NULLS) {
+        continue;
+      }
       if (pre_group_val_[i] != tmp) {
         is_new_group_ = true;
         pre_group_val_[i] = tmp;
