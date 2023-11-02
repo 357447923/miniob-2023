@@ -450,6 +450,13 @@ RC SelectStmt::create(Db* db, const SelectSqlNode& select_sql, const std::vector
         }
     }
     // having_stmt构造
+    if (!select_sql.havings.empty()) {
+        rc = HavingStmt::create(db, default_table, &table_map, tables, select_sql.havings.data(), select_sql.groups.size(), having_stmt);
+        if (rc != RC::SUCCESS) {
+            LOG_INFO("cannot construct having filter stmt");
+            return rc;
+        }
+    }
 
     // 所有前置工作完成，开始构造SelectStmt
     select_stmt = new SelectStmt();

@@ -87,6 +87,23 @@ RC LogicalPlanGenerator::create(Stmt* stmt, unique_ptr<LogicalOperator>& logical
     return rc;
 }
 
+void get_field_and_aggr_for_groupby(Expression *expr, std::vector<AggrFuncExpr *> &aggr_exprs, std::vector<FieldExpr *> &field_exprs) {
+    switch (expr->type()) {
+        case ExprType::AGGRFUNCTION: {
+            aggr_exprs.emplace_back((AggrFuncExpr*)expr);
+            break;
+        }
+        case ExprType::FIELD: {
+            field_exprs.emplace_back((FieldExpr*)expr);
+            break;
+        }
+        case ExprType::ARITHMETIC: {
+            ArithmeticExpr::find_aggr_func((ArithmeticExpr*)expr, aggr_exprs);
+            break;
+        }
+    }
+}
+
 RC LogicalPlanGenerator::create_plan(CalcStmt* calc_stmt, std::unique_ptr<LogicalOperator>& logical_operator) {
     logical_operator.reset(new CalcLogicalOperator(std::move(calc_stmt->expressions())));
     return RC::SUCCESS;
@@ -185,20 +202,7 @@ RC LogicalPlanGenerator::create_plan(
     std::vector<FieldExpr*> field_exprs;
     const std::vector<Expression*>& exprs = select_stmt->query_expressions();
     for (const auto& expr : exprs) {
-        switch (expr->type()) {
-            case ExprType::AGGRFUNCTION: {
-                aggr_exprs.emplace_back((AggrFuncExpr*)expr);
-                break;
-            }
-            case ExprType::FIELD: {
-                field_exprs.emplace_back((FieldExpr*)expr);
-                break;
-            }
-            case ExprType::ARITHMETIC: {
-                ArithmeticExpr::find_aggr_func((ArithmeticExpr*)expr, aggr_exprs);
-                break;
-            }
-        }
+        get_field_and_aggr_for_groupby(expr, aggr_exprs, field_exprs);
     }
 
     unique_ptr<LogicalOperator> groupby_oper;
@@ -239,6 +243,21 @@ RC LogicalPlanGenerator::create_plan(
             return rc;
         }
     }
+
+    // 把having中需要查询的聚合函数和字段也放入Groupby算子中
+    HavingStmt *having_stmt = select_stmt->having_stmt();
+    if (having_stmt != nullptr) {
+        for (auto &having_unit : having_stmt->filter_units()) {
+            const FilterObj &left = having_unit->left();
+            if (left.is_attr) {
+                get_field_and_aggr_for_groupby(left.expression, aggr_exprs, field_exprs);
+            }
+            const FilterObj &right = having_unit->right();
+            if (right.is_attr) {
+                get_field_and_aggr_for_groupby(right.expression, aggr_exprs, field_exprs);
+            }
+        }
+    }
     if (groupby_oper) {
         GroupByLogicalOperator* oper = (GroupByLogicalOperator*)groupby_oper.get();
         oper->aggr_exprs().swap(aggr_exprs);
@@ -248,7 +267,19 @@ RC LogicalPlanGenerator::create_plan(
     }
 
     // having 算子
-
+    unique_ptr<LogicalOperator> having_logical_oper;
+    if (select_stmt->having_stmt() != nullptr) {
+        RC rc = create_plan(select_stmt->having_stmt(), having_logical_oper);
+        if (rc != RC::SUCCESS) {
+            LOG_WARN("failed to create predicate logical plan. rc=%s", strrc(rc));
+            return rc;
+        }
+    }
+    if (having_logical_oper) {
+        having_logical_oper->add_child(std::move(*top_op));
+        top_op = &having_logical_oper;
+    }
+    
     // sortby 算子
     unique_ptr<LogicalOperator> sorted_logical_oper;
     // TODO 封装到create_plan
@@ -385,7 +416,7 @@ RC LogicalPlanGenerator::create_plan(UpdateStmt* update_stmt, std::unique_ptr<Lo
         sub_query_logical_oper.release();
     }
     unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, false));
-
+    
     // 过滤执行计划
     unique_ptr<LogicalOperator> predicate_oper;
     RC rc = create_plan(update_stmt->filter_stmt(), predicate_oper);

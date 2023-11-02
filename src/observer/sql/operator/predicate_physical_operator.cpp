@@ -49,6 +49,7 @@ RC PredicatePhysicalOperator::open(Trx *trx)
     LOG_WARN("predicate operator must has one child");
     return RC::INTERNAL;
   }
+  // 把trx交给子查询方便子查询进行open
   if (expression_->type() == ExprType::CONJUNCTION) {
     for (auto &expr : ((ConjunctionExpr *)expression_.get())->children()) {
       ComparisonExpr *comparison_expr = ((ComparisonExpr *)expr.get());
