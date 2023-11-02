@@ -62,7 +62,8 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
     for (size_t i = 0; i < trx_fields->size(); i++) {
       const FieldMeta &field_meta = (*trx_fields)[i];
-      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_meta.not_null(), field_offset, field_meta.len(), false/*visible*/);
+      // 事务字段不计入计入id的排序，id设置为-1
+      fields_[i] = FieldMeta(-1, field_meta.name(), field_meta.type(), field_meta.not_null(), field_offset, field_meta.len(), false/*visible*/);
       field_offset += field_meta.len();
     }
 
@@ -73,7 +74,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   for (int i = 0; i < field_num; i++) {
     const AttrInfoSqlNode &attr_info = attributes[i];
-    rc = fields_[i + trx_field_num].init(attr_info.name.c_str(), 
+    rc = fields_[i + trx_field_num].init(i, attr_info.name.c_str(), 
             attr_info.type, attr_info.not_null, field_offset, attr_info.length, true/*visible*/);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());

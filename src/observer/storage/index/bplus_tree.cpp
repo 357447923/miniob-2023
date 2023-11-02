@@ -749,6 +749,7 @@ RC BplusTreeHandler::create(const char* file_name,
               std::vector<AttrType> attr_type,
               std::vector<int> attr_length,
               std::vector<int> attr_offset,
+              std::vector<int> attr_id,
               int internal_max_size /* = -1*/,
               int leaf_max_size /* = -1 */)
 {
@@ -789,6 +790,7 @@ RC BplusTreeHandler::create(const char* file_name,
   IndexFileHeader *file_header = (IndexFileHeader *)pdata;
   for (int i = 0; i < attr_length.size(); i++) {
     length_sum += attr_length[i];
+    file_header->attr_id[i] = attr_id[i];
     file_header->attr_type[i] = attr_type[i];
     file_header->attr_length[i] = attr_length[i];
     file_header->attr_offset[i] = attr_offset[i];
@@ -822,7 +824,7 @@ RC BplusTreeHandler::create(const char* file_name,
     return RC::NOMEM;
   }
 
-  key_comparator_.init(indexType, attr_type, attr_length);
+  key_comparator_.init(indexType, attr_id, attr_type, attr_length);
   key_printer_.init(attr_type, attr_length);
   LOG_INFO("Successfully create index %s", file_name);
   return RC::SUCCESS;
@@ -883,9 +885,10 @@ RC BplusTreeHandler::open(const char *file_name)
   for (int i = 0; i < file_header_.attr_num; i++) {
     attr_type.push_back(file_header_.attr_type[i]);
     attr_length.push_back(file_header_.attr_length[i]);
+    attr_length.push_back(file_header_.attr_id[i]);
   }
 
-  key_comparator_.init(file_header_.index_type,attr_type, attr_length);
+  key_comparator_.init(file_header_.index_type, attr_id, attr_type, attr_length);
   key_printer_.init(attr_type, attr_length);
   LOG_INFO("Successfully open index %s", file_name);
   return RC::SUCCESS;

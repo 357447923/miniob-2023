@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 
 #include "json/json.h"
 
+const static Json::StaticString FIELD_ID("id");
 const static Json::StaticString FIELD_NAME("name");
 const static Json::StaticString FIELD_TYPE("type");
 const static Json::StaticString FIELD_OFFSET("offset");
@@ -26,16 +27,16 @@ const static Json::StaticString FIELD_IS_NOT_NULL("isNotNull");
 const static Json::StaticString FIELD_LEN("len");
 const static Json::StaticString FIELD_VISIBLE("visible");
 
-FieldMeta::FieldMeta() : attr_type_(AttrType::UNDEFINED), not_null_(false), attr_offset_(-1), attr_len_(0), visible_(false)
+FieldMeta::FieldMeta() : id_(-1), attr_type_(AttrType::UNDEFINED), not_null_(false), attr_offset_(-1), attr_len_(0), visible_(false)
 {}
 
-FieldMeta::FieldMeta(const char *name, AttrType attr_type, bool not_null, int attr_offset, int attr_len, bool visible)
+FieldMeta::FieldMeta(int id, const char *name, AttrType attr_type, bool not_null, int attr_offset, int attr_len, bool visible)
 {
-  [[maybe_unused]] RC rc = this->init(name, attr_type, not_null, attr_offset, attr_len, visible);
+  [[maybe_unused]] RC rc = this->init(id, name, attr_type, not_null, attr_offset, attr_len, visible);
   ASSERT(rc == RC::SUCCESS, "failed to init field meta. rc=%s", strrc(rc));
 }
 
-RC FieldMeta::init(const char *name, AttrType attr_type, bool not_null, int attr_offset, int attr_len, bool visible)
+RC FieldMeta::init(int id, const char *name, AttrType attr_type, bool not_null, int attr_offset, int attr_len, bool visible)
 {
   if (common::is_blank(name)) {
     LOG_WARN("Name cannot be empty");
@@ -47,7 +48,7 @@ RC FieldMeta::init(const char *name, AttrType attr_type, bool not_null, int attr
         "Invalid argument. name=%s, attr_type=%d, attr_offset=%d, attr_len=%d", name, attr_type, attr_offset, attr_len);
     return RC::INVALID_ARGUMENT;
   }
-
+  id_ = id;
   name_ = name;
   attr_type_ = attr_type;
   attr_len_ = attr_len;
@@ -57,6 +58,11 @@ RC FieldMeta::init(const char *name, AttrType attr_type, bool not_null, int attr
 
   LOG_INFO("Init a field with name=%s", name);
   return RC::SUCCESS;
+}
+
+int FieldMeta::id() const
+{
+  return id_;
 }
 
 const char *FieldMeta::name() const
@@ -91,12 +97,14 @@ bool FieldMeta::visible() const
 
 void FieldMeta::desc(std::ostream &os) const
 {
-  os << "field name=" << name_ << ", type=" << attr_type_to_string(attr_type_) << ", len=" << attr_len_
-     << ", not_null=" << (not_null_? "yes": "no") << ", visible=" << (visible_ ? "yes" : "no");
+  os << "field id=" << id_ << ", field name=" << name_ << ", type=" << attr_type_to_string(attr_type_)
+     << ", len=" << attr_len_ << ", not_null=" << (not_null_ ? "yes" : "no")
+     << ", visible=" << (visible_ ? "yes" : "no");
 }
 
 void FieldMeta::to_json(Json::Value &json_value) const
 {
+  json_value[FIELD_ID] = id_;
   json_value[FIELD_NAME] = name_;
   json_value[FIELD_TYPE] = attr_type_to_string(attr_type_);
   json_value[FIELD_OFFSET] = attr_offset_;
@@ -111,7 +119,7 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
     LOG_ERROR("Failed to deserialize field. json is not an object. json value=%s", json_value.toStyledString().c_str());
     return RC::INTERNAL;
   }
-
+  const Json::Value &id_value = json_value[FIELD_ID];
   const Json::Value &name_value = json_value[FIELD_NAME];
   const Json::Value &type_value = json_value[FIELD_TYPE];
   const Json::Value &offset_value = json_value[FIELD_OFFSET];
@@ -119,6 +127,10 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
   const Json::Value &not_null_value = json_value[FIELD_IS_NOT_NULL];
   const Json::Value &visible_value = json_value[FIELD_VISIBLE];
 
+  if (!id_value.isInt()) {
+    LOG_ERROR("Field id is not a integer. json value=%s", id_value.toStyledString().c_str());
+    return RC::GENERIC_ERROR;
+  }
   if (!name_value.isString()) {
     LOG_ERROR("Field name is not a string. json value=%s", name_value.toStyledString().c_str());
     return RC::INTERNAL;
@@ -150,11 +162,11 @@ RC FieldMeta::from_json(const Json::Value &json_value, FieldMeta &field)
     LOG_ERROR("Got invalid field type. type=%d", type);
     return RC::INTERNAL;
   }
-
+  int id = id_value.asInt();
   const char *name = name_value.asCString();
   int offset = offset_value.asInt();
   int len = len_value.asInt();
   bool not_null = not_null_value.asBool();
   bool visible = visible_value.asBool();
-  return field.init(name, type, not_null, offset, len, visible);
+  return field.init(id, name, type, not_null, offset, len, visible);
 }

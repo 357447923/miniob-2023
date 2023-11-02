@@ -54,8 +54,9 @@ enum class BplusTreeOperationType
 class AttrComparator 
 {
 public:
-  void init(std::vector<AttrType> type, std::vector<int> length)
+  void init(std::vector<int> id, std::vector<AttrType> type, std::vector<int> length)
   {
+    attr_id_ = id;
     attr_type_ = type;
     attr_length_ = length;
   }
@@ -71,14 +72,26 @@ public:
 
   int operator()(const char *v1, const char *v2, bool null_as_differnet = false) const  // for null type
   {
-    // TODO multi-index compare with null value
     int rc = 0;
-    int pos = 0;
-    for (size_t i = 0; i < attr_length_.size(); i++) {
+    int pos = attr_length_[0];
+    common::Bitmap old_null_bitmap(const_cast<char *>(v1), attr_length_[0]);
+    common::Bitmap new_null_bitmap(const_cast<char *>(v2), attr_length_[0]);
+    for (size_t i = 1; i < attr_length_.size(); i++) { // 要插入的key包含null
+      if (new_null_bitmap.get_bit(attr_id_[i])) {
+        if (null_as_differnet)  // 这里认为NULL比其它值(包括NULL)都大，返回-1
+          return -1;
+        if (old_null_bitmap.get_bit(attr_id_[i])) {
+          continue;  // bitmap值为1，说明此字段为NULL, NULL和NULL相等
+        } else {
+          return -1;  // 这里认为NULL比其它值(不包括NULL)都大，返回-1
+        }
+      } else if (old_null_bitmap.get_bit(attr_id_[i])) { // 原来的key包含null
+        return 1;
+      }
       switch (attr_type_[i]) {
         case INTS:
         case DATES: {
-          rc = common::compare_int ((void *)(v1 + pos), (void *)(v2 + pos));
+          rc = common::compare_int((void *)(v1 + pos), (void *)(v2 + pos));
         } break;
         case FLOATS: {
           rc = common::compare_float((void *)(v1 + pos), (void *)(v2 + pos));
@@ -100,6 +113,7 @@ public:
   }
 
 private:
+  std::vector<int> attr_id_;
   std::vector<AttrType> attr_type_;
   std::vector<int> attr_length_;
 };
@@ -112,10 +126,10 @@ private:
 class KeyComparator 
 {
 public:
-  void init(IndexType indexType, std::vector<AttrType> type, std::vector<int> length)
+  void init(IndexType indexType, std::vector<int> id, std::vector<AttrType> type, std::vector<int> length)
   {
     indextype_ = indexType;
-    attr_comparator_.init(type, length);
+    attr_comparator_.init(id, type, length);
   }
 
   const AttrComparator &attr_comparator() const
@@ -248,6 +262,7 @@ struct IndexFileHeader
   int32_t key_length;  // attr length + sizeof(RID)
   int32_t attr_num;
   int32_t attr_length[MAX_NUM];  // 第一列为标记NULL的bitmap
+  int32_t attr_id[MAX_NUM];      // 标识该列在record中的位置
   int32_t attr_offset[MAX_NUM];
   AttrType attr_type[MAX_NUM];
   IndexType index_type;
@@ -505,6 +520,7 @@ public:
             std::vector<AttrType> attr_type,
             std::vector<int> attr_length,
             std::vector<int> attr_offset,
+            std::vector<int> id,
             int internal_max_size = -1,
             int leaf_max_size = -1);
   /**

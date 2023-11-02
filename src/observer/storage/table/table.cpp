@@ -484,7 +484,11 @@ RC Table::create_index(Trx* trx, const std::vector<FieldMeta> field_metas, const
 
     IndexMeta new_index_meta;
     std::vector<std::string> field_names;
-    // TODO 这里可以拿到bitmap的长度
+    // 把 bitmap 作为一个系统字段加入到 field_metas 中(id = -1)
+    FieldMeta bitmapFiled;
+    bitmapFiled.init(-1 ,"bitmap",AttrType::CHARS,true,0,this->table_meta_.field(0)->offset(),false);
+    std::vector<FieldMeta> &tmp_meta = const_cast<std::vector<FieldMeta>&>(field_metas);
+    tmp_meta.insert(field_metas.begin(),std::move(bitmapFiled));
     for (FieldMeta fieldMeta : field_metas) {
         field_names.push_back(fieldMeta.name());
     }
