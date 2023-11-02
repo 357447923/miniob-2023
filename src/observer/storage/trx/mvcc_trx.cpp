@@ -161,6 +161,9 @@ RC MvccTrx::insert_record(Table *table, Record &record)
 }
 
 RC MvccTrx::update_record(Table *table, Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) {
+  Field begin_field;
+  Field end_field;
+  trx_fields(table, begin_field, end_field);
   // RC rc = table->update_record(record, offsets, indexs, values);
   return RC::SUCCESS;
 }
@@ -203,6 +206,14 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
   if (begin_xid > 0 && end_xid > 0) {
     if (trx_id_ >= begin_xid && trx_id_ <= end_xid) {
       rc = RC::SUCCESS;// trx_id_ >= begin xid && trx_id_ <= end xid -> 记录已经并且被提交,可以访问
+    } else if (trx_id_ < begin_xid) {
+      // 只能看到当前记录对应的历史版本
+      if(readonly) {
+        // TODO 把record设置成对应的历史版本？
+      } else {
+        // 如果不是只读
+        return RC::LOCKED_CONCURRENCY_CONFLICT;
+      }
     } else {
       rc = RC::RECORD_INVISIBLE;
     }
