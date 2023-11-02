@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 
 class SQLStageEvent;
+class CreateTableSelectPhysicalOperator;
 
 /**
  * @brief 创建表的执行器
@@ -29,4 +30,9 @@ public:
   virtual ~CreateTableExecutor() = default;
 
   RC execute(SQLStageEvent *sql_event);
+  /**
+   * 通过表创建物理算子来创建表
+   * @details 必须在表创建物理算子open之后才能调用
+   */
+  RC execute(CreateTableSelectPhysicalOperator *oper);
 };

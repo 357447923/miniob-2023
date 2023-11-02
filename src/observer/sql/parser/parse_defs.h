@@ -40,7 +40,6 @@ enum AggFuncType
   FUNC_SUM,
   FUNC_NONE
 };
-// 最好不要放头文件里
 const static char *AGGR_FUNC_TYPE_NAME[] = {"MAX", "MIN", "COUNT", "AVG", "SUM"}; 
 
 /**
@@ -234,6 +233,7 @@ struct CreateTableSqlNode
 {
   std::string                  relation_name;         ///< Relation name 表名
   std::vector<AttrInfoSqlNode> attr_infos;            ///< attributes 属性
+  std::unique_ptr<SelectSqlNode> select_table;        ///< select语句，用于create-table-select
 };
 
 /**

@@ -24,9 +24,11 @@ See the Mulan PSL v2 for more details. */
 #include "event/session_event.h"
 #include "sql/stmt/stmt.h"
 #include "sql/stmt/select_stmt.h"
+#include "sql/stmt/create_table_stmt.h"
 #include "storage/default/default_handler.h"
 #include "sql/executor/command_executor.h"
 #include "sql/operator/calc_physical_operator.h"
+#include "sql/operator/create_table_select_physical_operator.h"
 
 using namespace std;
 using namespace common;
@@ -73,6 +75,44 @@ static inline void append_aggr_schema(TupleSchema &tuple_schema, bool with_table
   }
 }
 
+static void handle_request_when_physical_is_select(TupleSchema &schema, SelectStmt *select_stmt) {
+  // 不一定是多表才会带着表名
+  // 但miniob可以这样认为
+  bool with_table_name = select_stmt->tables().size() > 1;
+  const std::vector<Expression *> &expressions = select_stmt->query_expressions();
+  
+  for (int i = 0; i < expressions.size(); i++) {
+    switch(expressions[i]->type()) {
+      case ExprType::AGGRFUNCTION: {
+        AggrFuncExpr *aggr_expr = static_cast<AggrFuncExpr *>(expressions[i]);
+        append_aggr_schema(schema, with_table_name, aggr_expr);
+      }break;
+      case ExprType::FIELD: {
+        FieldExpr *field_expr = static_cast<FieldExpr *>(expressions[i]);
+        if (with_table_name) {
+          schema.append_cell(TupleCellSpec(field_expr->table_name(), 
+              field_expr->field_name(), field_expr->alias()));
+        }else {
+          schema.append_cell(TupleCellSpec(field_expr->field_name(), 
+              field_expr->alias()));
+        }
+      }break;
+      case ExprType::ARITHMETIC: {
+        const char *alias = expressions[i]->alias();
+        schema.append_cell(TupleCellSpec(NO_FUNC, expressions[i], alias? alias: expressions[i]->name().c_str()));
+      }break;
+      case ExprType::FUNC: {
+        FuncExpr *func_expr = static_cast<FuncExpr *>(expressions[i]);
+        const char *alias = func_expr->alias();
+        schema.append_cell(TupleCellSpec(func_expr->func_type(), func_expr, alias? alias: func_expr->name().c_str()));
+      }break;
+      default: {
+        LOG_WARN("Execute_stage couldn't handle expr_type => %d", expressions[i]->type());
+      }break;
+    }
+  }
+}
+
 RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
 {
   RC rc = RC::SUCCESS;
@@ -88,41 +128,7 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
   switch (stmt->type()) {
     case StmtType::SELECT: {
       SelectStmt *select_stmt = static_cast<SelectStmt *>(stmt);
-      // 不一定是多表才会带着表名
-      // 但miniob可以这样认为
-      bool with_table_name = select_stmt->tables().size() > 1;
-      const std::vector<Expression *> &expressions = select_stmt->query_expressions();
-    
-      for (int i = 0; i < expressions.size(); i++) {
-        switch(expressions[i]->type()) {
-          case ExprType::AGGRFUNCTION: {
-            AggrFuncExpr *aggr_expr = static_cast<AggrFuncExpr *>(expressions[i]);
-            append_aggr_schema(schema, with_table_name, aggr_expr);
-          }break;
-          case ExprType::FIELD: {
-            FieldExpr *field_expr = static_cast<FieldExpr *>(expressions[i]);
-            if (with_table_name) {
-              schema.append_cell(TupleCellSpec(field_expr->table_name(), 
-                  field_expr->field_name(), field_expr->alias()));
-            }else {
-              schema.append_cell(TupleCellSpec(field_expr->field_name(), 
-                  field_expr->alias()));
-            }
-          }break;
-          case ExprType::ARITHMETIC: {
-            const char *alias = expressions[i]->alias();
-            schema.append_cell(alias? alias: expressions[i]->name().c_str());
-          }break;
-          case ExprType::FUNC: {
-            FuncExpr *func_expr = static_cast<FuncExpr *>(expressions[i]);
-            const char *alias = func_expr->alias();
-            schema.append_cell(TupleCellSpec(func_expr->func_type(), func_expr, alias? alias: func_expr->name().c_str()));
-          }break;
-          default: {
-            LOG_WARN("Execute_stage couldn't handle expr_type => %d", expressions[i]->type());
-          }break;
-        }
-      }
+      handle_request_when_physical_is_select(schema, select_stmt);
     } break;
 
     case StmtType::CALC: {
@@ -136,6 +142,18 @@ RC ExecuteStage::handle_request_with_physical_operator(SQLStageEvent *sql_event)
     case StmtType::EXPLAIN: {
       schema.append_cell("Query Plan");
     } break;
+
+    case StmtType::CREATE_TABLE: {
+      CreateTableStmt *create_table_stmt = static_cast<CreateTableStmt *>(stmt);
+      SelectStmt *select_stmt = create_table_stmt->select_stmt();
+      if (!select_stmt) {
+        break;
+      }
+      CreateTableSelectPhysicalOperator *create_oper = static_cast<CreateTableSelectPhysicalOperator *>(physical_operator.get());
+      handle_request_when_physical_is_select(create_oper->schema(), select_stmt);
+      LOG_DEBUG("createTable's schema construct success");
+    } break;
+
     default: {
       // 只有select返回结果
     } break;

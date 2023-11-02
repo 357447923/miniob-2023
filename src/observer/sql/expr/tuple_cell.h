@@ -51,6 +51,9 @@ public:
   const AggFuncType aggfunc_type() const {
     return aggfunc_type_;
   }
+  const FuncType func_type() const {
+    return func_type_;
+  }
   /**
    * 统一tuple_cell类的输出
    */
@@ -76,7 +79,7 @@ public:
     expression_ = expr;
   }
 
-  Expression *expression() {
+  Expression *expression() const {
     return expression_;
   }
 
