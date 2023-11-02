@@ -32,3 +32,5 @@ public:
     return LogicalOperatorType::PREDICATE;
   }
 };
+
+typedef PredicateLogicalOperator HavingLogicalOperator;

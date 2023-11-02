@@ -35,6 +35,10 @@ public:
       alias_ = alias;
     }
   }
+  TupleCellSpec(AggFuncType type, Expression *expr) {
+    aggfunc_type_ = type;
+    expression_ = expr;
+  }
 
   const char *table_name() const
   {
