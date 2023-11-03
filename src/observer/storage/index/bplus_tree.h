@@ -70,7 +70,7 @@ public:
     return sum_len;  // TO DO MULTI INDEX
   }
 
-  int operator()(const char *v1, const char *v2, bool null_as_differnet = false) const  // for null type
+  int operator()(const char *v1, const char *v2, bool null_as_differnet = true) const  // for null type
   {
     int rc = 0;
     int pos = attr_length_[0];

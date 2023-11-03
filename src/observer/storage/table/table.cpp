@@ -262,7 +262,7 @@ RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<in
     std::vector<int> temp_change_value_lens;
     for (size_t i = 0; i < values.size(); i++)
     {
-        Value oldValue = Value(record.data() + offsets[i], 4);
+        Value oldValue = Value(record.data() + offsets[i], lens[i]);
         rc = record_handler_->update_record(offsets[i], indexs[i], values[i], record, lens[i]);
         if (rc == RC::SUCCESS)
         {
