@@ -262,14 +262,14 @@ RC Table::update_record(Record& record, std::vector<int> offsets, std::vector<in
     std::vector<int> temp_change_value_lens;
     for (size_t i = 0; i < values.size(); i++)
     {
-        Value oldValue = Value(record.data() + offsets[i], values[i].length());
+        Value oldValue = Value(record.data() + offsets[i], lens[i]);
         rc = record_handler_->update_record(offsets[i], indexs[i], values[i], record, lens[i]);
         if (rc == RC::SUCCESS)
         {
             temp_values.push_back(std::move(oldValue));
             temp_old_index.push_back(indexs[i]);
             temp_change_value_offsets.push_back(offsets[i]);
-            temp_change_value_lens.push_back(offsets[i]);
+            temp_change_value_lens.push_back(lens[i]);
         }   
     }
     if (rc == RC::SUCCESS) {
@@ -383,6 +383,7 @@ void Table::delete_cache_record(){
     change_value_offsets.clear();
     old_records.clear();
     inserted_records.clear();
+    change_value_lens.clear();
 }
 
 const char* Table::name() const {
@@ -484,7 +485,11 @@ RC Table::create_index(Trx* trx, const std::vector<FieldMeta> field_metas, const
 
     IndexMeta new_index_meta;
     std::vector<std::string> field_names;
-    // TODO 这里可以拿到bitmap的长度
+    // 把 bitmap 作为一个系统字段加入到 field_metas 中(id = -1)
+    FieldMeta bitmapFiled;
+    bitmapFiled.init(-1 ,"bitmap",AttrType::CHARS,true,0,this->table_meta_.field(0)->offset(),false);
+    std::vector<FieldMeta> &tmp_meta = const_cast<std::vector<FieldMeta>&>(field_metas);
+    tmp_meta.insert(field_metas.begin(),std::move(bitmapFiled));
     for (FieldMeta fieldMeta : field_metas) {
         field_names.push_back(fieldMeta.name());
     }

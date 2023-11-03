@@ -33,15 +33,17 @@ RC BplusTreeIndex::create(const char *file_name, const IndexMeta &index_meta, st
   Index::init(index_meta, field_metas);
   std::vector<int> field_length;
   std::vector<int> field_offset;
+  std::vector<int> field_id;
   std::vector<AttrType> field_type;
 
   // 第0个字段为record中NULL的Bitmap
   for (size_t i = 0; i < field_metas.size(); i++) {
+    field_id.push_back(field_metas[i].id());
     field_length.push_back(field_metas[i].len());
     field_offset.push_back(field_metas[i].offset());
     field_type.push_back(field_metas[i].type());
   }
-  RC rc = index_handler_.create(file_name, index_meta.indexType() ,field_type, field_length, field_offset);
+  RC rc = index_handler_.create(file_name, index_meta.indexType() ,field_type, field_length, field_offset, field_id);
   if (RC::SUCCESS != rc) {
     LOG_WARN("Failed to create index_handler, file_name:%s, index:%s, field:%s, rc:%s",
         file_name,

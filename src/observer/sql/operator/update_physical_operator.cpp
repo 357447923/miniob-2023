@@ -97,7 +97,8 @@ RC UpdatePhysicalOperator::next() {
         }
       }
 
-      if (value.attr_type() != field->type()) {
+      AttrType value_type = value.attr_type();
+      if (value_type != field->type() && !(value_type == NULLS && !field->not_null())) {
           LOG_INFO("value attr_type: %d, expect: %d", field->type());
           return RC::INTERNAL;
       }

@@ -26,6 +26,7 @@ static const Json::StaticString FIELD_TABLE_ID("table_id");
 static const Json::StaticString FIELD_TABLE_NAME("table_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_INDEXES("indexes");
+static const string EXPAND_FIELD("bitmap");
 
 TableMeta::TableMeta(const TableMeta &other)
     : name_(other.name_), fields_(other.fields_), indexes_(other.indexes_), record_size_(other.record_size_)
@@ -62,7 +63,8 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
     for (size_t i = 0; i < trx_fields->size(); i++) {
       const FieldMeta &field_meta = (*trx_fields)[i];
-      fields_[i] = FieldMeta(field_meta.name(), field_meta.type(), field_meta.not_null(), field_offset, field_meta.len(), false/*visible*/);
+      // 事务字段不计入计入id的排序，id设置为-1
+      fields_[i] = FieldMeta(-1, field_meta.name(), field_meta.type(), field_meta.not_null(), field_offset, field_meta.len(), false/*visible*/);
       field_offset += field_meta.len();
     }
 
@@ -73,7 +75,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
 
   for (int i = 0; i < field_num; i++) {
     const AttrInfoSqlNode &attr_info = attributes[i];
-    rc = fields_[i + trx_field_num].init(attr_info.name.c_str(), 
+    rc = fields_[i + trx_field_num].init(i, attr_info.name.c_str(), 
             attr_info.type, attr_info.not_null, field_offset, attr_info.length, true/*visible*/);
     if (rc != RC::SUCCESS) {
       LOG_ERROR("Failed to init field meta. table name=%s, field name: %s", name, attr_info.name.c_str());
@@ -180,6 +182,7 @@ const IndexMeta *TableMeta::index(const char *name) const
 const IndexMeta* TableMeta::find_index_by_field(const char* field) const {
   std::string field_name = field;
   std::vector<std::string> fields;
+  fields.push_back(EXPAND_FIELD);
   fields.push_back(field_name);
   for (const IndexMeta &index : indexes_) {
     if (fields == *index.fields()) {

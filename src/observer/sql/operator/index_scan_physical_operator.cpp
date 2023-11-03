@@ -39,13 +39,44 @@ RC IndexScanPhysicalOperator::open(Trx *trx)
   if (nullptr == table_ || nullptr == index_) {
     return RC::INTERNAL;
   }
-  sql_debug("use index:%s",index_->index_meta().name());
-  IndexScanner *index_scanner = index_->create_scanner(left_value_.data(),
-      left_value_.length(),
+  int value_len = 0;
+  for (int i = 1; i < index_->index_meta().fields()->size(); i++) {
+    const char *field_name = index_->index_meta().fields()->at(i).c_str();
+    value_len += table_->table_meta().field(field_name)->len();
+  }  
+  // 给左右值加上Bitmap
+  int map_len = table_->table_meta().field(0)->offset();
+  char *left_with_bitmap = new char[map_len + value_len];
+  char *right_with_bitmap = new char[map_len + value_len];
+  memset(left_with_bitmap, 0, map_len + value_len);  
+  memset(right_with_bitmap, 0, map_len + value_len);  
+  common::Bitmap left_map(left_with_bitmap, map_len);
+  common::Bitmap right_map(right_with_bitmap, map_len);
+  if (left_value_.attr_type() == NULLS)
+  {
+      const char *field_name = index_->index_meta().fields()->at(1).c_str();
+      int field_id = table_->table_meta().field(field_name)->id();
+      left_map.set_bit(field_id);
+  }
+  if (right_value_.attr_type() == NULLS)
+  {
+      const char *field_name = index_->index_meta().fields()->at(1).c_str();
+      int field_id = table_->table_meta().field(field_name)->id();
+      right_map.set_bit(field_id);
+  }
+  memcpy(left_with_bitmap + map_len, left_value_.data(), value_len);
+  memcpy(right_with_bitmap + map_len, right_value_.data(), value_len);
+
+  LOG_INFO("use index:%s",index_->index_meta().name());
+  IndexScanner *index_scanner = index_->create_scanner(
+      left_with_bitmap,
+      map_len + left_value_.length(),
       left_inclusive_,
-      right_value_.data(),
-      right_value_.length(),
+      right_with_bitmap,
+      map_len + right_value_.length(),
       right_inclusive_);
+  delete[] left_with_bitmap;
+  delete[] right_with_bitmap;
   if (nullptr == index_scanner) {
     LOG_WARN("failed to create index scanner");
     return RC::INTERNAL;
