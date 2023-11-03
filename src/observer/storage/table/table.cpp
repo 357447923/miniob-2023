@@ -350,9 +350,6 @@ RC Table::rollback_update() {
         rc = delete_entry_of_indexes(record.data(), record.rid(), b);
     }
     // 更新回原来的值
-    // for (size_t i = 0; i < old_values.size(); i++) {
-    //     rc = record_handler_->update_record(change_value_offsets[i], old_index[i],old_values[i], old_records[i]);
-    // }
     for (size_t i = 0; i < old_records.size(); i++)
     {
         std::vector<Value> temp_values = old_values[i];

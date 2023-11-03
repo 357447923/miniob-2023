@@ -93,7 +93,7 @@ public:
 
 private:
   RC commit_with_trx_id(int32_t commit_id);
-  void trx_fields(Table *table, Field &begin_xid_field, Field &end_xid_field) const;
+  void trx_fields(Table *table, Field &begin_xid_field, Field &end_xid_field, Field &history_row_field) const;
 
 private:
   static const int32_t MAX_TRX_ID = std::numeric_limits<int32_t>::max();

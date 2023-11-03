@@ -60,7 +60,7 @@ RC TableMeta::init(int32_t table_id, const char *name, int field_num, const Attr
   const vector<FieldMeta> *trx_fields = TrxKit::instance()->trx_fields();
   if (trx_fields != nullptr) {
     fields_.resize(field_num + trx_fields->size());
-    // 在 mvcc 的模式下,每个表初始化的时候都会插入两个事务字段 trx_field ->
+    // 在 mvcc 的模式下,每个表初始化的时候都会插入两个事务字段trx_field ->
     // __trx_xid_begin :  起始版本号
     // __trx_xid_end   :  结束版本号
     for (size_t i = 0; i < trx_fields->size(); i++) {
