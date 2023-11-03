@@ -34,8 +34,8 @@ MvccTrxKit::~MvccTrxKit()
 RC MvccTrxKit::init()
 {
   fields_ = vector<FieldMeta>{
-    FieldMeta("__trx_xid_begin", AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/),
-    FieldMeta("__trx_xid_end",   AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/)
+    FieldMeta(-1, "__trx_xid_begin", AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/),
+    FieldMeta(-1, "__trx_xid_end",   AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/)
   };
 
   LOG_INFO("init mvcc trx kit done.");
@@ -160,17 +160,9 @@ RC MvccTrx::insert_record(Table *table, Record &record)
   return rc;
 }
 
-RC MvccTrx::update_record(Table *table, Record &record, int offset, int index, Value &value) {
-  Field begin_field;
-  Field end_field;
-  trx_fields(table, begin_field, end_field);
-
-  begin_field.set_int(record, -trx_id_);
-  end_field.set_int(record, trx_kit_.max_trx_id());
-
-  RC rc = table->update_record(record, offset, index, value);
-  // TODO
-  return rc;
+RC MvccTrx::update_record(Table *table, Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) {
+  // RC rc = table->update_record(record, offsets, indexs, values);
+  return RC::SUCCESS;
 }
 
 RC MvccTrx::delete_record(Table * table, Record &record)

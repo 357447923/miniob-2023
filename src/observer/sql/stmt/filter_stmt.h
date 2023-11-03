@@ -115,6 +115,9 @@ public:
   {
     return filter_units_;
   }
+  ConjunctionExpr::Type conjuct_type() const {
+    return conjuct_type_;
+  }
 
 public:
   static RC create(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables_map,
@@ -125,4 +128,5 @@ public:
 
 private:
   std::vector<FilterUnit *> filter_units_;  // 默认当前都是AND关系
+  ConjunctionExpr::Type conjuct_type_ = ConjunctionExpr::Type::AND;
 };

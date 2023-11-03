@@ -40,7 +40,6 @@ enum AggFuncType
   FUNC_SUM,
   FUNC_NONE
 };
-// 最好不要放头文件里
 const static char *AGGR_FUNC_TYPE_NAME[] = {"MAX", "MIN", "COUNT", "AVG", "SUM"}; 
 
 /**
@@ -111,6 +110,7 @@ struct ConditionSqlNode
                                    ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
+  int             next_or_link;     ///< 下一个ConditionSqlNode是否是or连接的
 };
 
 struct OrderSqlNode 
@@ -168,6 +168,15 @@ struct CalcSqlNode
 
   ~CalcSqlNode();
 };
+/**
+ * @brief 描述一个set子句
+*/
+struct SetClauseSqlNode
+{
+  Value                         value_;                 ///< 更新的值
+  std::string                   attribute_name_;        ///< 更新的字段
+  std::shared_ptr<SelectSqlNode> sub_query_;            ///< 子查询
+};
 
 /**
  * @brief 描述一个insert语句
@@ -197,9 +206,8 @@ struct DeleteSqlNode
 struct UpdateSqlNode
 {
   std::string                   relation_name;         ///< Relation to update
-  std::string                   attribute_name;        ///< 更新的字段，仅支持一个字段
-  Value                         value;                 ///< 更新的值，仅支持一个字段
   std::vector<ConditionSqlNode> conditions;
+  std::vector<SetClauseSqlNode> set_clause_list;
 };
 
 /**
@@ -226,6 +234,7 @@ struct CreateTableSqlNode
 {
   std::string                  relation_name;         ///< Relation name 表名
   std::vector<AttrInfoSqlNode> attr_infos;            ///< attributes 属性
+  std::unique_ptr<SelectSqlNode> select_table;        ///< select语句，用于create-table-select
 };
 
 /**
@@ -374,6 +383,7 @@ public:
   LoadDataSqlNode           load_data;
   ExplainSqlNode            explain;
   SetVariableSqlNode        set_variable;
+
 
 public:
   ParsedSqlNode();

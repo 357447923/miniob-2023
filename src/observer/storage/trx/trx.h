@@ -156,7 +156,7 @@ public:
    * @param index 要更新的字段是第几个字段, 从0开始
    * @param value 更新后的数据
    */
-  virtual RC update_record(Table *table, Record &record, int offset, int index, Value &value) = 0;
+  virtual RC update_record(Table *table, Record &record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) = 0;
   virtual RC visit_record(Table *table, Record &record, bool readonly) = 0;
 
   virtual RC start_if_need() = 0;

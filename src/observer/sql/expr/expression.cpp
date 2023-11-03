@@ -308,7 +308,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
 
   bool res = false;
-  RC rc = compare_value(left_value, right_value, res);  // 里面要修改NULL的比较逻辑，而不是只写日志
+  RC rc = compare_value(left_value, right_value, res);
   if (rc == RC::SUCCESS) {
     value.set_boolean(res);
   }
@@ -663,8 +663,8 @@ RC AggrFuncExpr::get_value(const Tuple &tuple, Value &value) const {
     return tuple.find_cell(TupleCellSpec(field_->table_name(), field_->field_name(), nullptr, type_), value);
   }else if (value_ != nullptr) {
     if (tuple.cell_num() > 0) {
-      value = Value("");
-      return RC::SUCCESS;
+      TupleCellSpec tmp_spec(type_, value_);
+      return tuple.find_cell(tmp_spec, value);;
     }
   }
   return RC::UNIMPLENMENT;
@@ -679,6 +679,8 @@ RC AggrFuncExpr::try_get_value(Value &value) const {
 
 // AggrFuncExpr end...
 ////////////////////////////////////////////////////
+
+SubQueryExpr::SubQueryExpr(SelectStmt *select_stmt) : select_stmt_(select_stmt) {}
 
 SubQueryExpr::~SubQueryExpr() {
   if (select_stmt_ != nullptr) {

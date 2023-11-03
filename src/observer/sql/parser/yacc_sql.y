@@ -93,6 +93,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         STRING_T
         FLOAT_T
         DATE_T
+        TEXT_T
         null
         IS
         NOT
@@ -105,6 +106,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         WHERE
         HAVING
         AND
+        OR
         SET
         INNER
         JOIN
@@ -142,6 +144,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
   OrderSqlNode *                    order_condition;
+  SelectSqlNode *                   sub_select;
   Value *                           value;
   enum CompOp                       comp;
   enum FuncType                     func;
@@ -157,8 +160,12 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   std::vector<OrderSqlNode> *       order_condition_list;
   std::vector<RelAttrSqlNode> *     rel_attr_list;
   std::vector<std::string> *        relation_list;
+  std::vector<SetClauseSqlNode> *   set_clause_list;
+  SetClauseSqlNode *                set_clause;
+  std::vector<RelAttrSqlNode> *     func_attr_list;
   RelationAndConditionTempList*     relationAndConditionTempList;
   std::vector<std::string> *        index_attr_list;
+  SelectSqlNode *                   select_sql_node;
   char *                            string;
   int                               number;
   float                             floats;
@@ -195,6 +202,9 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <rel_attr>            group_item
 %type <rel_attr_list>       select_attr
 %type <relation_list>       rel_list
+%type <set_clause>          set_clause
+%type <set_clause_list>     set_clause_list
+%type <sub_select>          sub_query
 
 
 %type <rel_attr_list>       attr_list
@@ -214,6 +224,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <sql_node>            show_tables_stmt
 %type <sql_node>            desc_table_stmt
 %type <sql_node>            create_index_stmt
+%type <select_sql_node>     create_table_select
 %type <sql_node>            drop_index_stmt
 %type <sql_node>            sync_stmt
 %type <sql_node>            begin_stmt
@@ -332,10 +343,28 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       }
       create_index.attribute_names.push_back($7);
       std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
-      create_index.index_type = "NOMAL_INDEX";
+      create_index.index_type = "NORMAL";
       free($3);
       free($5);
       free($7);
+    }
+    | CREATE ID INDEX ID ON ID LBRACE ID idx_attr_list RBRACE
+    {
+      $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
+      CreateIndexSqlNode &create_index = $$->create_index;
+      create_index.index_name = $4;
+      create_index.relation_name = $6;
+      if ($9 != nullptr) {
+        create_index.attribute_names.swap(*$9);
+        delete $9;
+      }
+      create_index.attribute_names.push_back($8);
+      std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
+      create_index.index_type = $2;
+      free($2);
+      free($4);
+      free($6);
+      free($8);
     }
     ;
 
@@ -381,8 +410,62 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       create_table.attr_infos.emplace_back(*$5);
       std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
       delete $5;
+      delete $6;
+    }
+    /* create-table-select*/
+    | CREATE TABLE ID create_table_select {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+      create_table.select_table.reset($4);
+    }
+    | CREATE TABLE ID LBRACE attr_def attr_def_list RBRACE create_table_select {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+      create_table.select_table.reset($8);
+
+      std::vector<AttrInfoSqlNode> *src_attrs = $6;
+      if (src_attrs != nullptr) {
+        create_table.attr_infos.swap(*src_attrs);
+      }
+      create_table.attr_infos.emplace_back(*$5);
+      std::reverse(create_table.attr_infos.begin(), create_table.attr_infos.end());
+      delete $5;
+      delete $6;
     }
     ;
+
+create_table_select:
+  select_stmt
+  {
+      $$ = new SelectSqlNode;
+      SelectSqlNode &select_sql_node = $1->selection;
+      $$->attributes.swap(select_sql_node.attributes);
+      $$->relations.swap(select_sql_node.relations);
+      $$->join_conditions.swap(select_sql_node.join_conditions);
+      $$->conditions.swap(select_sql_node.conditions);
+      $$->groups.swap(select_sql_node.groups);
+      $$->orders.swap(select_sql_node.orders);
+      $$->havings.swap(select_sql_node.havings);
+      delete $1;
+  }
+  | AS select_stmt 
+  {
+      $$ = new SelectSqlNode;
+      SelectSqlNode &select_sql_node = $2->selection;
+      $$->attributes.swap(select_sql_node.attributes);
+      $$->relations.swap(select_sql_node.relations);
+      $$->join_conditions.swap(select_sql_node.join_conditions);
+      $$->conditions.swap(select_sql_node.conditions);
+      $$->groups.swap(select_sql_node.groups);
+      $$->orders.swap(select_sql_node.orders);
+      $$->havings.swap(select_sql_node.havings);
+      delete $2;
+  }
+
 attr_def_list:
     /* empty */
     {
@@ -415,7 +498,11 @@ attr_def:
       $$ = new AttrInfoSqlNode;
       $$->type = (AttrType)$2;
       $$->name = $1;
-      $$->length = 4;
+      if($$->type == TEXTS) {
+        $$->length = 65535;
+      } else{
+        $$->length = 4;
+      }
       $$->not_null = true;
       free($1);
     }
@@ -436,6 +523,7 @@ type:
     | STRING_T { $$=CHARS; }
     | FLOAT_T  { $$=FLOATS; }
     | DATE_T   { $$=DATES; }
+    | TEXT_T   { $$=TEXTS; }
     ;
 insert_stmt:        /*insert   语句的语法解析树*/
     INSERT INTO ID VALUES LBRACE value value_list RBRACE value_lists
@@ -586,32 +674,62 @@ delete_stmt:    /*  delete 语句的语法解析树*/
     }
     ;
 update_stmt:      /*  update 语句的语法解析树*/
-    UPDATE ID SET ID EQ value where 
+    UPDATE ID SET set_clause_list where 
     {
       $$ = new ParsedSqlNode(SCF_UPDATE);
       $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$6;
-      if ($7 != nullptr) {
-        $$->update.conditions.swap(*$7);
-        delete $7;
+      if ($4 != nullptr) {
+        $$->update.set_clause_list.swap(*$4);
+        delete $4;
+      }     
+      if ($5 != nullptr) {
+        $$->update.conditions.swap(*$5);
+        delete $5;
       }
       free($2);
-      free($4);
     }
-    | UPDATE ID SET ID EQ '-' value where
+
+set_clause_list: /*set 子句列表*/
+    set_clause COMMA set_clause_list
     {
-      $$ = new ParsedSqlNode(SCF_UPDATE);
-      modify_2_negative($7);
-      $$->update.relation_name = $2;
-      $$->update.attribute_name = $4;
-      $$->update.value = *$7;
-      if ($8 != nullptr) {
-        $$->update.conditions.swap(*$8);
-        delete $8;
+      if($3 != nullptr) {
+        $$ = $3;
+        $$->push_back(*$1);
+      } else {
+        $$ = new std::vector<SetClauseSqlNode>;
+        $$->push_back(*$1);
       }
-      free($2);
-      free($4);
+    }
+    | set_clause
+    {
+      $$ = new std::vector<SetClauseSqlNode>;
+      $$->push_back(*$1);
+    }
+    ;
+
+set_clause: /* 单个set子句*/
+    ID EQ value
+    {
+      $$ = new SetClauseSqlNode;
+      $$->attribute_name_ = $1;
+      $$->value_ = *$3;
+      free($1);
+      delete $3;
+    }
+    | ID EQ '-' value
+    {
+      $$ = new SetClauseSqlNode;
+      modify_2_negative($4);
+      $$->attribute_name_ = $1;
+      $$->value_ = *$4;
+      free($1);
+      delete $4;
+    }
+    | ID EQ sub_query {
+      $$ = new SetClauseSqlNode;
+      $$->attribute_name_ = $1;
+      $$->sub_query_.reset($3);
+      free($1);
     }
     ;
 
@@ -635,6 +753,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       $$->selection.relations.push_back(node);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       if ($7 != nullptr) {
+        std::reverse($7->begin(), $7->end());
         $$->selection.conditions.swap(*$7);
         delete $7;
       }
@@ -682,9 +801,9 @@ calc_stmt:
     ;
 
 simple_func_item:
-  func LBRACE value RBRACE {
+  func value RBRACE {
     // 这里的ValueExpr找不到合适的地方释放
-    ValueExpr *value_expr = new ValueExpr(std::move(*$3));
+    ValueExpr *value_expr = new ValueExpr(std::move(*$2));
     value_expr->set_name(value_expr->get_value().to_string());
     FuncExpr *expr = new FuncExpr($1, 1, value_expr, nullptr);
     $$ = new RelAttrSqlNode;
@@ -705,12 +824,12 @@ simple_func_item:
     name += value_expr->name();
     name += ")";
     expr->set_name(name);
-    delete $3;
+    delete $2;
   }
-  | func LBRACE value COMMA value RBRACE {
-    auto first = new ValueExpr(std::move(*$3));
+  | func value COMMA value RBRACE {
+    auto first = new ValueExpr(std::move(*$2));
     first->set_name(first->get_value().to_string());
-    auto second = new ValueExpr(std::move(*$5));
+    auto second = new ValueExpr(std::move(*$4));
     second->set_name(second->get_value().to_string());
     FuncExpr *expr = new FuncExpr($1, 2, first, second);
     $$ = new RelAttrSqlNode;
@@ -733,7 +852,7 @@ simple_func_item:
     name += second->name();
     name += ")";
     expr->set_name(name);
-    delete $3;
+    delete $2;
   }
   ;
 
@@ -805,31 +924,31 @@ expression:
       free($3);
       free($1);
     }
-    | agg_func LBRACE ID RBRACE {
+    | agg_func ID RBRACE {
       FieldExpr *field_expr = new FieldExpr;
-      field_expr->set_name(std::string($3));
+      field_expr->set_name(std::string($2));
       $$ = new AggrFuncExpr($1, field_expr);
-      free($3);
+      free($2);
     }
-    | agg_func LBRACE ID DOT ID RBRACE {
+    | agg_func ID DOT ID RBRACE {
       FieldExpr *field_expr = new FieldExpr;
-      field_expr->set_name(std::string($3).append(".").append(std::string($5)));
+      field_expr->set_name(std::string($2).append(".").append(std::string($4)));
       $$ = new AggrFuncExpr($1, field_expr);
-      free($3);
-      free($5);
+      free($2);
+      free($4);
     }
-    | agg_func LBRACE '*' RBRACE {
+    | agg_func '*' RBRACE {
       ValueExpr *expr = new ValueExpr(Value("*", 2));
       expr->set_name("*");
       $$ = new AggrFuncExpr($1, expr);
     }
-    | agg_func LBRACE number RBRACE {
-      ValueExpr *expr = new ValueExpr(Value($3));
-      expr->set_name(std::to_string($3));
+    | agg_func number RBRACE {
+      ValueExpr *expr = new ValueExpr(Value($2));
+      expr->set_name(std::to_string($2));
       $$ = new AggrFuncExpr($1, expr);
     }
-    | func LBRACE expression RBRACE {
-      $$ = new FuncExpr($1, 1, $3, nullptr);
+    | func expression RBRACE {
+      $$ = new FuncExpr($1, 1, $2, nullptr);
       std::string name;
       switch ($1) {
         case FUNC_LENGTH: {
@@ -842,12 +961,12 @@ expression:
           name += "DATE_FORMAT(";
         }break;
       }
-      name += $3->name();
+      name += $2->name();
       name += ")";
       $$->set_name(name);
     }
-    | func LBRACE expression COMMA expression RBRACE {
-      $$ = new FuncExpr($1, 2, $3, $5);
+    | func expression COMMA expression RBRACE {
+      $$ = new FuncExpr($1, 2, $2, $4);
       std::string name;
       switch ($1) {
         case FUNC_LENGTH: {
@@ -860,9 +979,9 @@ expression:
           name += "DATE_FORMAT(";
         }break;
       }
-      name += $3->name();
+      name += $2->name();
       name += ", ";
-      name += $5->name();
+      name += $4->name();
       name += ")";
       $$->set_name(name);
     }
@@ -907,7 +1026,7 @@ alias:
     | ID {
       $$ = $1;
     }
-    | AS ID %prec UMINUS {
+    | AS ID {
       $$ = $2;
     }
     ;
@@ -948,8 +1067,26 @@ rel_attr:
       }
     }
     // 子查询
-    | LBRACE SELECT rel_attr alias FROM ID alias rel_condition_list where group order having RBRACE {
+    | sub_query {
       $$ = new RelAttrSqlNode;
+      $$->sub_query.reset($1);
+    }
+    // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
+    | LBRACE value value_list RBRACE %prec UMINUS {
+      $$ = new RelAttrSqlNode;
+      if ($3 == nullptr) {
+        $3 = new std::vector<Value>;
+      }
+      $3->push_back(*$2);
+      delete $2;
+      $$->expression = new ListQueryExpr(*$3);
+      delete $3;
+    }
+    ;
+
+sub_query:
+    LBRACE SELECT rel_attr alias FROM ID alias rel_condition_list where group order having RBRACE 
+    {
       SelectSqlNode *sub_query = new SelectSqlNode;
       $3->alias.reset($4);
       sub_query->attributes.push_back(*$3);
@@ -980,24 +1117,10 @@ rel_attr:
         sub_query->havings.swap(*$12);
         delete $12;
       }
-      $$->sub_query = std::shared_ptr<SelectSqlNode>(sub_query);
+      $$ = sub_query;
       delete $3;
       free($6);
     }
-    // 这个有冲突，当value_list为null时，并且我认为这个不适合放在这里，他只服务于condition才对
-    | LBRACE value value_list RBRACE %prec UMINUS {
-      $$ = new RelAttrSqlNode;
-      if ($3 == nullptr) {
-        $3 = new std::vector<Value>;
-      }
-      $3->push_back(*$2);
-      delete $2;
-      $$->expression = new ListQueryExpr(*$3);
-      delete $3;
-    }
-    ;
-
-
 
 attr_list:
     /* empty */
@@ -1105,14 +1228,26 @@ condition_list:
     }
     | condition {
       $$ = new std::vector<ConditionSqlNode>;
+      $1->next_or_link = 0;
       $$->emplace_back(*$1);
       delete $1;
     }
     | condition AND condition_list {
       $$ = $3;
+      $1->next_or_link = 0;
+      std::cout << "enter and" << std::endl;
       $$->emplace_back(*$1);
       delete $1;
-    } 
+    }
+    | condition OR condition_list {
+      $$ = $3;
+      $1->next_or_link = 1;
+      std::cout << "enter or" << std::endl;
+      std::cout << $1->next_or_link << std::endl;
+      $$->emplace_back(*$1);
+      std::cout << $$->back().next_or_link << std::endl;
+      delete $1;
+    }
     | ON condition_list {
       if ($2 != nullptr) {
         $$ = $2;

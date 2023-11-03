@@ -110,13 +110,13 @@ RC SortedPhysicalOperator::close() {
 }
 
 Tuple *SortedPhysicalOperator::current_tuple() {
-  // TODO 需要改动整个set和get_record的抽象
   Tuple *tuple = children_[0]->current_tuple();
   if (is_first) {
     return tuple;
   }
   if (it_ != ordered_idx_.end()) {
-    tuple->set_record((records_)[*it_]);
+    int idx = 0;
+    tuple->set_record((records_)[*it_], idx);
   }
   return tuple;
 }

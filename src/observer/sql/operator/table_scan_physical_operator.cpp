@@ -94,10 +94,10 @@ RC TableScanPhysicalOperator::next()
     }
 
     if (filter_result) {
-      sql_debug("get a tuple: %s", tuple_.to_string().c_str());
+      sql_debug("table scan, get a tuple: %s", tuple_.to_string().c_str());
       break;
     } else {
-      sql_debug("a tuple is filtered: %s", tuple_.to_string().c_str());
+      sql_debug("table scan, a tuple is filtered: %s", tuple_.to_string().c_str());
       rc = RC::RECORD_EOF;
     }
   }

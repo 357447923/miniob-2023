@@ -12,6 +12,7 @@ See the Mulan PSL v2 for more details. */
 // Created by Wangyunlai on 2022/5/22.
 //
 
+#include <regex>
 #include "common/rc.h"
 #include "common/log/log.h"
 #include "common/lang/string.h"
@@ -47,7 +48,9 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     }
     tmp_stmt->filter_units_.push_back(filter_unit);
   }
-
+  if (condition_num > 0 && conditions->next_or_link) {
+    tmp_stmt->conjuct_type_ = ConjunctionExpr::Type::OR;
+  }
   stmt = tmp_stmt;
   return rc;
 }
@@ -96,7 +99,7 @@ static bool judge_subquery_correctness(SelectStmt *select_stmt) {
  */
 static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std::string, Table *> *tables_map, 
     const std::vector<Table *> &tables, const RelAttrSqlNode &attr, FilterObj &filter_obj) {
-  if (attr.expression != nullptr) {
+    if (attr.expression != nullptr) {
       // 尝试获取值，在这里能获取到值的就直接把filter转为值，减少后续重复计算
       Value val;
       RC rc = attr.expression
@@ -155,7 +158,21 @@ static RC filter_attr_init(Db *db, Table *default_table, std::unordered_map<std:
       }
       expr->set_stmt(select_stmt);
       filter_obj.init_attr(expr);
-    } else {
+    }else if (attr.type != FUNC_NONE){
+      if (std::regex_match(attr.attribute_name, std::regex("^(\\*|\\d+)$"))) {
+        filter_obj.init_attr(new AggrFuncExpr(attr.type, new ValueExpr));
+      }else {
+        //  TODO 把这部分合并成一个方法
+        Table *table = nullptr;
+        const FieldMeta *field = nullptr;
+        RC rc = get_table_and_field(db, default_table, tables_map, attr, table, field);
+        if (rc != RC::SUCCESS) {
+          LOG_WARN("cannot find attr");
+          return rc;
+        }
+        filter_obj.init_attr(new AggrFuncExpr(attr.type, new FieldExpr(table, field, attr.type)));
+      }
+    }else {
       Table *table = nullptr;
       const FieldMeta *field = nullptr;
       RC rc = get_table_and_field(db, default_table, tables_map, attr, table, field);

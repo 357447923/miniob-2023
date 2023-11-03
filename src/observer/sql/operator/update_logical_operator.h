@@ -6,15 +6,15 @@
 #include <unordered_map>
 
 /**
- * @brief 逻辑算子，用于执行delete语句
+ * @brief 逻辑算子，用于执行update语句
  * @ingroup LogicalOperator
  */
 class UpdateLogicalOperator : public LogicalOperator {
 
 public:
-    UpdateLogicalOperator(Table *table, Value value, const char *field_name);
+    UpdateLogicalOperator(Table *table,std::unordered_map<std::string, Expression*> update_map);
 
-    ~UpdateLogicalOperator() override;
+    ~UpdateLogicalOperator() override = default;
 
     LogicalOperatorType type() const override {
         return LogicalOperatorType::UPDATE;
@@ -24,22 +24,13 @@ public:
         return table_;
     }
 
-    inline Value& value() {
-        return value_;
+    const std::unordered_map<std::string, Expression *> update_map() const {
+        return update_map_;
     }
-
-    inline char * field_name() const {
-        return field_name_;
-    }
-    // const Value* find_value_by_field(const FieldMeta& field_meta) {
-    //     return &update_map_->at(field_meta);
-    // }
 
 private:
     Table * table_ = nullptr;
-    // std::unordered_map<FieldMeta, Value> *update_map_ = nullptr; // TODO 多字段更新
-    Value value_;
-    char * field_name_ = nullptr;
+    std::unordered_map<std::string, Expression *> update_map_ ;
 };
 
 #endif

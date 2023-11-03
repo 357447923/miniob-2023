@@ -35,7 +35,7 @@ See the Mulan PSL v2 for more details. */
 #include "readline/history.h"
 #endif
 
-#define MAX_MEM_BUFFER_SIZE 8192
+#define MAX_MEM_BUFFER_SIZE 70000
 #define PORT_DEFAULT 6789
 
 using namespace common;
@@ -94,6 +94,10 @@ bool is_exit_command(const char *cmd) {
   return 0 == strncasecmp("exit", cmd, 4) ||
          0 == strncasecmp("bye", cmd, 3) ||
          0 == strncasecmp("\\q", cmd, 2) ;
+}
+
+bool is_file(const char *cmd) {
+  return 0 == strncasecmp("file", cmd, 4);
 }
 
 int init_unix_sock(const char *unix_sock_path)
@@ -194,7 +198,18 @@ int main(int argc, char *argv[])
       break;
     }
 
-    if ((send_bytes = write(sockfd, input_command, strlen(input_command) + 1)) == -1) { // TODO writen
+    if (is_file(input_command)) {
+        const size_t len = 65600;
+        char* tmp = new char[len];
+        memset(tmp, 0, len);
+        int fd = fileno(fopen("/home/warrior/project/miniob-2023/src/obclient/input.txt", "r"));
+        printf("file fd: %d\n", fd);
+        int n = read(fd, tmp, len);
+        printf("read %d bytes data\n", n);
+        int send_n = write(sockfd, tmp, strlen(tmp) + 1);
+        printf("send %d bytes\n", send_n);
+        delete [] tmp;
+    } else if ((send_bytes = write(sockfd, input_command, strlen(input_command) + 1)) == -1) { // TODO writen
       fprintf(stderr, "send error: %d:%s \n", errno, strerror(errno));
       exit(1);
     }

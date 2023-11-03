@@ -376,15 +376,15 @@ public:
   RC get_value(const Tuple &tuple, Value &value) const override;
   RC try_get_value(Value &value) const override;
 
-  FieldExpr *field() {
+  FieldExpr *field() const {
     return field_;
   }
 
-  ValueExpr *value() {
+  ValueExpr *value() const {
     return value_;
   }
 
-  AggFuncType aggr_type() {
+  AggFuncType aggr_type() const {
     return type_;
   }
 
@@ -407,18 +407,29 @@ public:
   }
 
   AttrType value_type() const override {
+    switch (func_type_) {
+      case FUNC_LENGTH: {
+        return AttrType::INTS;
+      }
+      case FUNC_DATE_FORMAT: {
+        return AttrType::CHARS;
+      }
+      case FUNC_ROUND: {
+        return AttrType::FLOATS;
+      }
+    }
     return AttrType::UNDEFINED;
   }
 
-  FuncType func_type() {
+  FuncType func_type() const {
     return func_type_;
   }
 
-  std::vector<Expression *> get_params() {
+  std::vector<Expression *> get_params() const {
     return params_expr_;
   }
 
-  int get_param_size() {
+  int get_param_size() const {
     return param_size_;
   }
 
@@ -444,7 +455,7 @@ private:
 class SubQueryExpr : public Expression {
 public:
   SubQueryExpr() = default;
-
+  SubQueryExpr(SelectStmt *select_stmt);
   ~SubQueryExpr();
 
   RC get_value(const Tuple &tuple, Value &value) const override;

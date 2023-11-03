@@ -128,11 +128,11 @@ public:
     return str;
   }
 
-  virtual void set_record(std::vector<Record *> &records) {
+  virtual void set_record(std::vector<Record *> &records, int &index) {
     LOG_ERROR("Unimplenment, please check your tuple implenment set_record!");
   }
 
-  virtual void set_right_record(std::vector<Record *> &records) {
+  virtual void set_right_record(std::vector<Record *> &records, int &index) {
     LOG_ERROR("Unimplenment, please check your tuple implenment set_record!");
   }
 
@@ -159,14 +159,14 @@ public:
     speces_.clear();
   }
 
-  void set_record(std::vector<Record *> &records) override {
+  void set_record(std::vector<Record *> &records, int &index) override {
     assert(!records.empty());
-    set_record(records.front());
+    set_record(records[index]);
+    ++index;
   }
 
-  void set_right_record(std::vector<Record *> &records) override {
-    assert(!records.empty());
-    set_record(records);
+  void set_right_record(std::vector<Record *> &records, int &index) override {
+    set_record(records, index);
   }
 
   void set_record(Record *record)
@@ -251,7 +251,6 @@ public:
   }
   // 把get_record全部实现
   RC get_record(std::vector<Record *> &records) const override {
-    // TODO 测试一下如果非自行管理, 这个record的值是否还正常
     records.push_back(new Record(*record_));
     return RC::SUCCESS;
   }
@@ -341,12 +340,12 @@ RC get_record(std::vector<Record *> &record) const override {
   return tuple_->get_record(record);
 } 
 
-void set_record(std::vector<Record *> &record) override {
-  tuple_->set_record(record);
+void set_record(std::vector<Record *> &record, int &index) override {
+  tuple_->set_record(record, index);
 }
 
-void set_right_record(std::vector<Record *> &record) override {
-  tuple_->set_right_record(record);
+void set_right_record(std::vector<Record *> &record, int &index) override {
+  tuple_->set_right_record(record, index);
 }
 
 #if 0
@@ -495,7 +494,13 @@ public:
     return right_->find_cell(spec, value);
   }
 
-  void set_record(std::vector<Record *> &record) {
+  void set_record(std::vector<Record *> &record, int &index) override {
+    assert(record.size() - index >= 2);
+    left_->set_record(record, index);
+    right_->set_record(record, index);
+  }
+
+  /*void set_record(std::vector<Record *> &record) override {
     // 此处是断言JoinTuple的子Tuple必定是RowTuple
     // 这样做其实不好，但是遇到了一个bug: 如果这里没有断言的话
     // 就只能用left_->set_record(record);right_->set_record(record);插入record
@@ -508,12 +513,13 @@ public:
     assert(record.size() >= 2);
     left->set_record(record[0]);
     right->set_record(record[1]);
-  }
+  }*/
 
   void set_right_record(Record& record) {
     std::vector<Record*> tempRecord;
     tempRecord.emplace_back(&record);
-    right_->set_right_record(tempRecord);
+    int index = 0;
+    right_->set_right_record(tempRecord, index);
   }
 
   RC get_record(std::vector<Record *> &record) const override {

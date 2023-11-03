@@ -84,6 +84,7 @@ See the Mulan PSL v2 for more details. */
   DEFINE_RC(LEFT_NOT_LIKE_ANOTHER)          \
   DEFINE_RC(INDEX_GENERIC_ERROR)            \
   DEFINE_RC(GENERIC_ERROR)                  \
+  DEFINE_RC(INDEX_TYPE_UNKNOWN)             \
 
 
 

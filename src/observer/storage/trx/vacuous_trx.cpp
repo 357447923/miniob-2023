@@ -13,6 +13,7 @@ See the Mulan PSL v2 for more details. */
 //
 
 #include "storage/trx/vacuous_trx.h"
+#include "sql/parser/value.h"
 
 using namespace std;
 
@@ -56,8 +57,8 @@ RC VacuousTrx::insert_record(Table *table, Record &record)
   return table->insert_record(record);
 }
 
-RC VacuousTrx::update_record(Table *table, Record &record, int offset, int index, Value &value) {
-  return table->update_record(record, offset, index, value);
+RC VacuousTrx::update_record(Table *table, Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) {
+    return table->update_record(record, offsets, indexs, values, lens);
 }
 
 RC VacuousTrx::delete_record(Table *table, Record &record)
