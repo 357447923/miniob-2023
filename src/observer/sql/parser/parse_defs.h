@@ -110,6 +110,7 @@ struct ConditionSqlNode
                                    ///< 1时，操作符右边是属性名，0时，是属性值
   RelAttrSqlNode  right_attr;      ///< right-hand side attribute if right_is_attr = TRUE 右边的属性
   Value           right_value;     ///< right-hand side value if right_is_attr = FALSE
+  int             next_or_link;     ///< 下一个ConditionSqlNode是否是or连接的
 };
 
 struct OrderSqlNode 

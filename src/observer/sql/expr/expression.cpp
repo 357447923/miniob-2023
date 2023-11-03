@@ -308,7 +308,7 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
   }
 
   bool res = false;
-  RC rc = compare_value(left_value, right_value, res);  // 里面要修改NULL的比较逻辑，而不是只写日志
+  RC rc = compare_value(left_value, right_value, res);
   if (rc == RC::SUCCESS) {
     value.set_boolean(res);
   }
