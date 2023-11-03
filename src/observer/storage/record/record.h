@@ -171,7 +171,7 @@ public:
 private:
   RID rid_;
 
-  char *data_  = nullptr; /// data中最前面的数据是一个位图，用来当作NULL值标识符，位图的字节数相当于（字段数/8 + 1）,并且为NULL的会被记录为1
+  char *data_  = nullptr; /// data中最前面的数据是一个位图，用来当作NULL值标识符，位图的字节数相当于(字段数/8 + 1) 1为NULL, 0为非NULL
   // 对于Record来说，真正的长度是len_+bitmap_len_
   int   len_   = 0;       /// 如果不是record自己来管理内存，这个字段可能是无效的
   int   bitmap_len_ = 0;  /// 数据中的位图长度
