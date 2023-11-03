@@ -26,6 +26,7 @@ static const Json::StaticString FIELD_TABLE_ID("table_id");
 static const Json::StaticString FIELD_TABLE_NAME("table_name");
 static const Json::StaticString FIELD_FIELDS("fields");
 static const Json::StaticString FIELD_INDEXES("indexes");
+static const string EXPAND_FIELD("bitmap");
 
 TableMeta::TableMeta(const TableMeta &other)
     : name_(other.name_), fields_(other.fields_), indexes_(other.indexes_), record_size_(other.record_size_)
@@ -181,7 +182,7 @@ const IndexMeta *TableMeta::index(const char *name) const
 const IndexMeta* TableMeta::find_index_by_field(const char* field) const {
   std::string field_name = field;
   std::vector<std::string> fields;
-  fields.push_back("bitmap");
+  fields.push_back(EXPAND_FIELD);
   fields.push_back(field_name);
   for (const IndexMeta &index : indexes_) {
     if (fields == *index.fields()) {
