@@ -341,14 +341,14 @@ RC LogicalPlanGenerator::create_plan(
       return rc;
     }
 
-        ComparisonExpr* cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
-        cmp_exprs.emplace_back(cmp_expr);
+      ComparisonExpr* cmp_expr = new ComparisonExpr(filter_unit->comp(), std::move(left), std::move(right));
+      cmp_exprs.emplace_back(cmp_expr);
     }
 
     unique_ptr<PredicateLogicalOperator> predicate_oper;
     if (!cmp_exprs.empty()) {
-        unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(ConjunctionExpr::Type::AND, cmp_exprs));
-        predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
+      unique_ptr<ConjunctionExpr> conjunction_expr(new ConjunctionExpr(filter_stmt->conjuct_type(), cmp_exprs));
+      predicate_oper = unique_ptr<PredicateLogicalOperator>(new PredicateLogicalOperator(std::move(conjunction_expr)));
     }
 
     logical_operator = std::move(predicate_oper);

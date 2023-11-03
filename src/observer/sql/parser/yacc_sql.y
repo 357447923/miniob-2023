@@ -106,6 +106,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         WHERE
         HAVING
         AND
+        OR
         SET
         INNER
         JOIN
@@ -752,6 +753,7 @@ select_stmt:        /*  select 语句的语法解析树*/
       $$->selection.relations.push_back(node);
       std::reverse($$->selection.relations.begin(), $$->selection.relations.end());
       if ($7 != nullptr) {
+        std::reverse($7->begin(), $7->end());
         $$->selection.conditions.swap(*$7);
         delete $7;
       }
@@ -1226,14 +1228,26 @@ condition_list:
     }
     | condition {
       $$ = new std::vector<ConditionSqlNode>;
+      $1->next_or_link = 0;
       $$->emplace_back(*$1);
       delete $1;
     }
     | condition AND condition_list {
       $$ = $3;
+      $1->next_or_link = 0;
+      std::cout << "enter and" << std::endl;
       $$->emplace_back(*$1);
       delete $1;
-    } 
+    }
+    | condition OR condition_list {
+      $$ = $3;
+      $1->next_or_link = 1;
+      std::cout << "enter or" << std::endl;
+      std::cout << $1->next_or_link << std::endl;
+      $$->emplace_back(*$1);
+      std::cout << $$->back().next_or_link << std::endl;
+      delete $1;
+    }
     | ON condition_list {
       if ($2 != nullptr) {
         $$ = $2;

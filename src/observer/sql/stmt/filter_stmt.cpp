@@ -48,7 +48,9 @@ RC FilterStmt::create(Db *db, Table *default_table, std::unordered_map<std::stri
     }
     tmp_stmt->filter_units_.push_back(filter_unit);
   }
-
+  if (condition_num > 0 && conditions->next_or_link) {
+    tmp_stmt->conjuct_type_ = ConjunctionExpr::Type::OR;
+  }
   stmt = tmp_stmt;
   return rc;
 }
