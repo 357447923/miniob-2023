@@ -95,7 +95,7 @@ int _align8(int size)
 }
 
 CLogRecord *CLogRecord::build_mtr_record(CLogType type, int32_t trx_id)
-{
+{ 
   CLogRecord *log_record = new CLogRecord();
   CLogRecordHeader &header = log_record->header_;
   header.trx_id_ = trx_id;
@@ -204,7 +204,7 @@ CLogBuffer::CLogBuffer()
 CLogBuffer::~CLogBuffer()
 {}
 
-RC CLogBuffer::append_log_record(CLogRecord *log_record)
+RC CLogBuffer::append_log_record(CLogRecord *log_record, int *index)
 {
   if (nullptr == log_record) {
     return RC::INVALID_ARGUMENT;
@@ -217,8 +217,31 @@ RC CLogBuffer::append_log_record(CLogRecord *log_record)
 
   lock_guard<Mutex> lock_guard(lock_);
   log_records_.emplace_back(log_record);
+  if (index != nullptr)
+  {
+   *index = log_records_.size() - 1; 
+  }
   total_size_ += log_record->logrec_len();
   LOG_DEBUG("append log. log_record={%s}", log_record->to_string().c_str());
+  return RC::SUCCESS;
+}
+
+RC CLogBuffer::get_log_record(CLogRecord *&log_record, int index) {
+  if (index < 0 || index >= log_records_.size())
+  {
+    return RC::EMPTY;
+  }
+  log_record = log_records_[index].get();
+  return RC::SUCCESS;
+}
+
+RC CLogBuffer::del_log_record(int index) {
+  if (index < 0 || index >= log_records_.size())
+  {
+    return RC::EMPTY;
+  }
+  std::unique_ptr<CLogRecord> removedLogRecord = std::move(log_records_[index]);
+  log_records_.erase(log_records_.begin() + index);
   return RC::SUCCESS;
 }
 
@@ -450,14 +473,15 @@ RC CLogManager::append_log(CLogType type,
                 const RID &rid, 
                 int32_t data_len, 
                 int32_t data_offset, 
-                const char *data)
+                const char *data,
+                int *index  /* =nullptr */)
 {
   CLogRecord *log_record = CLogRecord::build_data_record(type, trx_id, table_id, rid, data_len, data_offset, data);
   if (nullptr == log_record) {
     LOG_WARN("failed to create log record");
     return RC::NOMEM;
   }
-  return append_log(log_record);
+  return append_log(log_record, index);
 }
 
 RC CLogManager::begin_trx(int32_t trx_id)
@@ -472,8 +496,8 @@ RC CLogManager::commit_trx(int32_t trx_id, int32_t commit_xid)
     LOG_WARN("failed to append trx commit log. trx id=%d, rc=%s", trx_id, strrc(rc));
     return rc;
   }
-
-  rc = sync(); // 事务提交时需要把当前事务关联的日志，都写入到磁盘中，这样做是保证不丢数据
+  // 为了update-mvcc实现方便,暂时把持久化去掉
+  // rc = sync(); // 事务提交时需要把当前事务关联的日志，都写入到磁盘中，这样做是保证不丢数据
   return rc;
 }
 
@@ -482,12 +506,20 @@ RC CLogManager::rollback_trx(int32_t trx_id)
   return append_log(CLogRecord::build_mtr_record(CLogType::MTR_ROLLBACK, trx_id));
 }
 
-RC CLogManager::append_log(CLogRecord *log_record)
+RC CLogManager::append_log(CLogRecord *log_record, int *index /*= nullptr*/)
 {
   if (nullptr == log_record) {
     return RC::INVALID_ARGUMENT;
   }
-  return log_buffer_->append_log_record(log_record);
+  return log_buffer_->append_log_record(log_record, index);
+}
+
+RC CLogManager::delete_log(int index){
+  return log_buffer_->del_log_record(index); 
+}
+
+RC CLogManager::get_log(CLogRecord *&log_record, int index) {
+  return log_buffer_->get_log_record(log_record, index); 
 }
 
 RC CLogManager::sync()

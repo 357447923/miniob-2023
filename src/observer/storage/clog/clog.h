@@ -55,7 +55,9 @@ class Db;
   DEFINE_CLOG_TYPE(MTR_COMMIT)        \
   DEFINE_CLOG_TYPE(MTR_ROLLBACK)      \
   DEFINE_CLOG_TYPE(INSERT)            \
-  DEFINE_CLOG_TYPE(DELETE)
+  DEFINE_CLOG_TYPE(DELETE)            \
+  DEFINE_CLOG_TYPE(UPDATE)            
+
 
 enum class CLogType 
 { 
@@ -244,7 +246,18 @@ public:
    * @brief 增加一条日志
    * @details 如果当前的日志达到一定量，就会刷新数据
    */
-  RC append_log_record(CLogRecord *log_record);
+  RC append_log_record(CLogRecord *log_record, int *index);
+
+
+  /**
+   * @brief 获取一条日志
+  */
+  RC get_log_record(CLogRecord *&log_record, int index);
+
+  /**
+   * @brief 删除一条日志
+  */
+  RC del_log_record(int index);
 
   /**
    * @brief 将当前的日志都刷新到日志文件中
@@ -375,7 +388,8 @@ public:
                 const RID &rid,
                 int32_t data_len,
                 int32_t data_offset,
-                const char *data);
+                const char *data,
+                int *index = nullptr);
 
   /**
    * @brief 开启一个事务
@@ -402,7 +416,14 @@ public:
   /**
    * @brief 也可以调用这个函数直接增加一条日志
    */
-  RC append_log(CLogRecord *log_record);
+  RC append_log(CLogRecord *log_record, int *index = nullptr);
+
+  RC delete_log(int index);
+
+  /**
+   * @brief 调用这个函数获取一条日志
+   */
+  RC get_log(CLogRecord *&log_record, int index);
 
   /**
    * @brief 刷新日志到磁盘

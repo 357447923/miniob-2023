@@ -35,7 +35,8 @@ RC MvccTrxKit::init()
 {
   fields_ = vector<FieldMeta>{
     FieldMeta(-1, "__trx_xid_begin", AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/),
-    FieldMeta(-1, "__trx_xid_end",   AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/)
+    FieldMeta(-1, "__trx_xid_end",   AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/),
+    FieldMeta(-1, "__history_row_ptr",   AttrType::INTS, false, 0/*attr_offset*/, 4/*attr_len*/, false/*visible*/),
   };
 
   LOG_INFO("init mvcc trx kit done.");
@@ -136,8 +137,11 @@ RC MvccTrx::insert_record(Table *table, Record &record)
 {
   Field begin_field;
   Field end_field;
-  trx_fields(table, begin_field, end_field);
-
+  Field history_field;
+  // 插入之前没有任何历史版本
+  
+  trx_fields(table, begin_field, end_field, history_field);
+  history_field.set_int(record, -1);
   begin_field.set_int(record, -trx_id_);
   end_field.set_int(record, trx_kit_.max_trx_id());
 
@@ -150,10 +154,10 @@ RC MvccTrx::insert_record(Table *table, Record &record)
   rc = log_manager_->append_log(CLogType::INSERT, trx_id_, table->table_id(), record.rid(), record.len(), 0/*offset*/, record.data());
   ASSERT(rc == RC::SUCCESS, "failed to append insert record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
       trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
-
+  // OperationSet::iterator: 迭代器，它指向 operations_ 集合中新插入的元素（如果插入成功）。bool:一个布尔值，表示插入操作是否成功。如果插入成功，这个布尔值为 true，否则为 false。
   pair<OperationSet::iterator, bool> ret = 
         operations_.insert(Operation(Operation::Type::INSERT, table, record.rid()));
-  if (!ret.second) {
+  if (!ret.second) { //插入失败
     rc = RC::INTERNAL;
     LOG_WARN("failed to insert operation(insertion) into operation set: duplicate");
   }
@@ -161,15 +165,39 @@ RC MvccTrx::insert_record(Table *table, Record &record)
 }
 
 RC MvccTrx::update_record(Table *table, Record& record, std::vector<int> offsets, std::vector<int> indexs, std::vector<Value> values, std::vector<int> lens) {
-  // RC rc = table->update_record(record, offsets, indexs, values);
-  return RC::SUCCESS;
+  RC rc = RC::SUCCESS;
+  Field begin_field;
+  Field end_field;
+  Field history_field;
+  trx_fields(table, begin_field, end_field, history_field);
+  // 1.标识这个字段正在被当前事务更新
+  begin_field.set_int(record, trx_id_);
+  end_field.set_int(record,trx_id_);
+  // 2.将原来的 record 记录到 clog 中，实现 mvcc
+  int index = -1;
+  rc = log_manager_->append_log(CLogType::UPDATE,trx_id_, table->table_id(), record.rid(), table->table_meta().record_size(), 0, record.data(), &index);
+  ASSERT(rc == RC::SUCCESS, "failed to append update record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
+    trx_id_, table->table_id(), record.rid().to_string().c_str(), record.len(), strrc(rc));
+  // 3.将历史版本在 clog 中的下标设置到 new_record 的 __history_row_ptr 字段中
+  history_field.set_int(record, index);
+  // 4.修改record
+  rc = table->update_record(record, offsets, indexs, values, lens);
+  if (rc != RC::SUCCESS)
+  {
+    // 更新失败需要删除 clog 中的历史版本
+
+  }
+  // 5.将 UPDATE 操作插入 Operation 中,rollback 和 commit 可以进行对应的操作
+  operations_.insert(Operation(Operation::Type::UPDATE, table, record.rid()));
+  return rc;
 }
 
 RC MvccTrx::delete_record(Table * table, Record &record)
 {
   Field begin_field;
   Field end_field;
-  trx_fields(table, begin_field, end_field);
+  Field history_field;
+  trx_fields(table, begin_field, end_field, history_field);
 
   [[maybe_unused]] int32_t end_xid = end_field.get_int(record);
   /// 在删除之前，第一次获取record时，就已经对record做了对应的检查，并且保证不会有其它的事务来访问这条数据
@@ -179,7 +207,7 @@ RC MvccTrx::delete_record(Table * table, Record &record)
     // 当前不是多版本数据中的最新记录，不需要删除
     return RC::SUCCESS;
   }
-  
+  // 如果 end_xid 等于当前事务的最大事务ID，表示当前记录是最新版本，可以进行删除操作。在这之前，会将结束字段的值设置为当前事务的ID的负值，以标记记录为已删除状态。
   end_field.set_int(record, -trx_id_);
   RC rc = log_manager_->append_log(CLogType::DELETE, trx_id_, table->table_id(), record.rid(), 0, 0, nullptr);
   ASSERT(rc == RC::SUCCESS, "failed to append delete record log. trx id=%d, table id=%d, rid=%s, record len=%d, rc=%s",
@@ -194,25 +222,56 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
 {
   Field begin_field;
   Field end_field;
-  trx_fields(table, begin_field, end_field);
+  Field history_field;
+  trx_fields(table, begin_field, end_field, history_field);
 
-  int32_t begin_xid = begin_field.get_int(record);
-  int32_t end_xid = end_field.get_int(record);
+  int32_t begin_xid = begin_field.get_int(record); // 起始版本号
+  int32_t end_xid = end_field.get_int(record); // 结束版本号
 
   RC rc = RC::SUCCESS;
   if (begin_xid > 0 && end_xid > 0) {
     if (trx_id_ >= begin_xid && trx_id_ <= end_xid) {
-      rc = RC::SUCCESS;
+      rc = RC::SUCCESS;// trx_id_ >= begin xid && trx_id_ <= end xid -> 记录已经并且被提交,可以访问
     } else {
-      rc = RC::RECORD_INVISIBLE;
+      // 只能看到当前记录对应的历史版本
+      if(readonly) {
+        int index = history_field.get_int(record);
+        CLogRecord *clogRecord = nullptr;
+        CLogRecordData clogRecordData;
+        Record tmpRec;
+        while (index != -1)
+        {
+          // 从日志中获取前面版本的record
+          log_manager_->get_log(clogRecord, index);
+          clogRecordData = clogRecord->data_record();
+          char *tmpdata = clogRecordData.data_;
+          int len = clogRecordData.data_len_;
+          tmpRec.set_data(tmpdata,record.bitmap_len(),len);
+          tmpRec.set_rid(record.rid());
+          // 如果 `trx_id_ >= end_xid `，可以访问这个版本的 record
+          if (trx_id_ >= begin_field.get_int(record))
+          {
+            record = tmpRec;
+            rc = RC::SUCCESS;
+            return rc;
+          } else {
+            // 如果 `trx_id_  < begin xid `，继续回退到上一个版本
+            index = history_field.get_int(tmpRec);
+          }
+        }   
+        return RC::RECORD_INVISIBLE;
+      } else {
+        // 如果不是只读
+        return RC::LOCKED_CONCURRENCY_CONFLICT;
+      }
     }
   } else if (begin_xid < 0) {
-    // begin xid 小于0说明是刚插入而且没有提交的数据
+    // begin xid < 0 -> 刚插入而且没有提交的数据
     rc = (-begin_xid == trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
   } else if (end_xid < 0) {
-    // end xid 小于0 说明是正在删除但是还没有提交的数据
+    // end xid < 0 -> 说明是正在删除但是还没有提交的数据
     if (readonly) {
-      // 如果 -end_xid 就是当前事务的事务号，说明是当前事务删除的
+      // end_xid = -trx_id_ -> 是当前事务删除的
       rc = (-end_xid != trx_id_) ? RC::SUCCESS : RC::RECORD_INVISIBLE;
     } else {
       // 如果当前想要修改此条数据，并且不是当前事务删除的，简单的报错
@@ -230,24 +289,26 @@ RC MvccTrx::visit_record(Table *table, Record &record, bool readonly)
  * @param table 指定的表
  * @param begin_xid_field 返回处理begin_xid的字段
  * @param end_xid_field   返回处理end_xid的字段
+ * @param history_row_field   返回处理记录历史版本的字段
  */
-void MvccTrx::trx_fields(Table *table, Field &begin_xid_field, Field &end_xid_field) const
+void MvccTrx::trx_fields(Table *table, Field &begin_xid_field, Field &end_xid_field,Field &history_row_field) const
 {
   const TableMeta &table_meta = table->table_meta();
   const std::pair<const FieldMeta *, int> trx_fields = table_meta.trx_fields();
-  ASSERT(trx_fields.second >= 2, "invalid trx fields number. %d", trx_fields.second);
-
+  ASSERT(trx_fields.second >= 3, "invalid trx fields number. %d", trx_fields.second);
   begin_xid_field.set_table(table);
   begin_xid_field.set_field(&trx_fields.first[0]);
   end_xid_field.set_table(table);
   end_xid_field.set_field(&trx_fields.first[1]);
+  history_row_field.set_table(table);
+  history_row_field.set_field(&trx_fields.first[2]);
 }
 
 RC MvccTrx::start_if_need()
 {
   if (!started_) {
     ASSERT(operations_.empty(), "try to start a new trx while operations is not empty");
-    trx_id_ = trx_kit_.next_trx_id();
+    trx_id_ = trx_kit_.next_trx_id();// 分配一个事务id
     LOG_DEBUG("current thread change to new trx with %d", trx_id_);
     RC rc = log_manager_->begin_trx(trx_id_);
     ASSERT(rc == RC::SUCCESS, "failed to append log to clog. rc=%s", strrc(rc));
@@ -273,16 +334,16 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
       case Operation::Type::INSERT: {
         RID rid(operation.page_num(), operation.slot_num());
         Table *table = operation.table();
-        Field begin_xid_field, end_xid_field;
-        trx_fields(table, begin_xid_field, end_xid_field);
-
+        Field begin_xid_field, end_xid_field, history_field;
+        trx_fields(table, begin_xid_field, end_xid_field, history_field);
+        // 定义了一个回调函数 record_updater，用于更新记录的开始版本号字段，将其设置为提交的版本号 commit_xid。
         auto record_updater = [ this, &begin_xid_field, commit_xid](Record &record) {
           LOG_DEBUG("before commit insert record. trx id=%d, begin xid=%d, commit xid=%d, lbt=%s",
                     trx_id_, begin_xid_field.get_int(record), commit_xid, lbt());
           ASSERT(begin_xid_field.get_int(record) == -this->trx_id_, 
                  "got an invalid record while committing. begin xid=%d, this trx id=%d", 
                  begin_xid_field.get_int(record), trx_id_);
-
+          // 设置起始事务 id 为 commit_xid
           begin_xid_field.set_int(record, commit_xid);
         };
 
@@ -295,8 +356,8 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
         Table *table = operation.table();
         RID rid(operation.page_num(), operation.slot_num());
         
-        Field begin_xid_field, end_xid_field;
-        trx_fields(table, begin_xid_field, end_xid_field);
+        Field begin_xid_field, end_xid_field, history_field;
+        trx_fields(table, begin_xid_field, end_xid_field, history_field);
 
         auto record_updater = [this, &end_xid_field, commit_xid](Record &record) {
           (void)this;
@@ -310,6 +371,27 @@ RC MvccTrx::commit_with_trx_id(int32_t commit_xid)
         rc = operation.table()->visit_record(rid, false/*readonly*/, record_updater);
         ASSERT(rc == RC::SUCCESS, "failed to get record while committing. rid=%s, rc=%s",
                rid.to_string().c_str(), strrc(rc));
+      } break;
+
+      case Operation::Type::UPDATE: {
+        RID rid(operation.page_num(), operation.slot_num());
+        Table *table = operation.table();
+        Field begin_xid_field, end_xid_field, history_field;
+        trx_fields(table, begin_xid_field, end_xid_field, history_field);
+        // 定义了一个回调函数 record_updater，用于更新记录的开始版本号字段，将其设置为提交的版本号 commit_xid。
+        auto record_updater = [ this, &begin_xid_field, &end_xid_field, commit_xid](Record &record) {
+          LOG_DEBUG("before commit insert record. trx id=%d, begin xid=%d, commit xid=%d, lbt=%s",
+                    trx_id_, begin_xid_field.get_int(record), commit_xid, lbt());
+          ASSERT(begin_xid_field.get_int(record) == -this->trx_id_, 
+                 "got an invalid record while committing. begin xid=%d, this trx id=%d", 
+                 begin_xid_field.get_int(record), trx_id_);
+          // 设置起始事务 id 为 commit_xid
+          begin_xid_field.set_int(record, commit_xid);
+          end_xid_field.set_int(record, trx_kit_.max_trx_id());
+        };
+        rc = operation.table()->visit_record(rid, false/*readonly*/, record_updater);
+        ASSERT(rc == RC::SUCCESS, "failed to get record while committing. rid=%s, rc=%s",
+        rid.to_string().c_str(), strrc(rc));
       } break;
 
       default: {
@@ -356,8 +438,8 @@ RC MvccTrx::rollback()
         
         ASSERT(rc == RC::SUCCESS, "failed to get record while rollback. rid=%s, rc=%s",
               rid.to_string().c_str(), strrc(rc));
-        Field begin_xid_field, end_xid_field;
-        trx_fields(table, begin_xid_field, end_xid_field);
+        Field begin_xid_field, end_xid_field, history_field;
+        trx_fields(table, begin_xid_field, end_xid_field, history_field);
 
         auto record_updater = [this, &end_xid_field](Record &record) {
           ASSERT(end_xid_field.get_int(record) == -trx_id_, 
@@ -372,6 +454,11 @@ RC MvccTrx::rollback()
                rid.to_string().c_str(), strrc(rc));
       } break;
 
+      case Operation::Type::UPDATE : {
+        // TODO rollback: trx 应该记录下自己曾经修改的过的数据
+        Table *table = operation.table();
+        table->rollback_update();
+      } break;
       default: {
         ASSERT(false, "unsupported operation. type=%d", static_cast<int>(operation.type()));
       }
@@ -434,7 +521,8 @@ RC MvccTrx::redo(Db *db, const CLogRecord &log_record)
       const CLogRecordData &data_record = log_record.data_record();
       Field begin_field;
       Field end_field;
-      trx_fields(table, begin_field, end_field);
+      Field history_field;
+      trx_fields(table, begin_field, end_field, history_field);
 
       auto record_updater = [this, &end_field](Record &record) {
         (void)this;
