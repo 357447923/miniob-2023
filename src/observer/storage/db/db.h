@@ -25,6 +25,8 @@ See the Mulan PSL v2 for more details. */
 class Table;
 class CLogManager;
 
+typedef Table View;
+
 /**
  * @brief 一个DB实例负责管理一批表
  * @details 当前DB的存储模式很简单，一个DB对应一个目录，所有的表和数据都放置在这个目录下。
@@ -46,6 +48,8 @@ public:
   RC init(const char *name, const char *dbpath);
 
   RC create_table(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes);
+
+  RC create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, std::vector<Table *> tables);
 
   RC drop_table(const char *table_name);
 

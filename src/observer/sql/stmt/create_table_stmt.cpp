@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details. */
 RC CreateTableStmt::create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt)
 {
   CreateTableStmt *create_table_stmt = new CreateTableStmt(create_table.relation_name, create_table.attr_infos);
+  create_table_stmt->create_view_ = create_table.create_view;
   if (create_table.select_table != nullptr) {
     std::unordered_map<std::string, Table *> parent_table_map;
     std::vector<Table *> parent_tables;

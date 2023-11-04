@@ -87,6 +87,7 @@ HELP                                    RETURN_TOKEN(HELP);
 CREATE                                  RETURN_TOKEN(CREATE);
 DROP                                    RETURN_TOKEN(DROP);
 TABLE                                   RETURN_TOKEN(TABLE);
+VIEW                                    RETURN_TOKEN(VIEW);
 TABLES                                  RETURN_TOKEN(TABLES);
 INDEX                                   RETURN_TOKEN(INDEX);
 INNER                                   RETURN_TOKEN(INNER);

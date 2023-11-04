@@ -124,6 +124,28 @@ RC Db::drop_table(const char *table_name) {
   return rc;
 }
 
+RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, std::vector<Table *> tables) {
+  RC rc = RC::SUCCESS;
+  // check table_name
+  if (opened_tables_.count(table_name) != 0) {
+    LOG_WARN("%s has been opened before.", table_name);
+    return RC::SCHEMA_TABLE_EXIST;
+  }
+  Table *table = new Table();
+  table->is_view_ = true;
+  TableMeta &table_meta = const_cast<TableMeta &>(table->table_meta());
+  rc = table_meta.init(-255, table_name, attribute_count, attributes);
+  if (rc != RC::SUCCESS) {
+    LOG_ERROR("Failed to create view %s.", table_name);
+    delete table;
+    return rc;
+  }
+
+  opened_tables_[table_name] = table;
+  table->view_attach_tables_[table] = tables;
+  LOG_INFO("Create view success. view name=%s", table_name);
+  return RC::SUCCESS;
+}
 
 Table *Db::find_table(const char *table_name) const
 {

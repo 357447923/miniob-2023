@@ -116,6 +116,12 @@ public:
   Index *find_index(const char *index_name) const;
   Index *find_index_by_field(const char *field_name) const;
   std::vector<Index *> indexs() const;
+
+public:
+  // 第二个只有在is_view_为true时才能有值
+  bool is_view_ = false;
+  std::unordered_map<Table *, std::vector<Table *>> view_attach_tables_;      // 视图存在opened_tables_中，然后视图与什么表联系存在这个容器中
+
 private:
   std::string base_dir_;
   TableMeta   table_meta_;
@@ -131,5 +137,4 @@ private:
   std::vector<std::vector<int>> old_index;
   std::vector<std::vector<size_t>> change_value_offsets; // 记录被修修改的字段的偏移量
   std::vector<std::vector<int>> change_value_lens; // 记录被修修改的字段的偏移量
-
 };

@@ -27,6 +27,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/table_get_logical_operator.h"
 #include "sql/operator/update_logical_operator.h"
 #include "sql/operator/create_table_select_logical_operator.h"
+#include "sql/operator/view_get_logical_operator.h"
 
 #include "sql/stmt/calc_stmt.h"
 #include "sql/stmt/delete_stmt.h"
@@ -139,8 +140,15 @@ RC LogicalPlanGenerator::create_plan(
                 }
             }
         }
-
-        unique_ptr<LogicalOperator> table_get_oper(new TableGetLogicalOperator(table, fields, true /*readonly*/));
+        LogicalOperator *logical_operator;
+        // 如果table是视图的话，则创建视图的获取逻辑算子
+        if (table->is_view_) {
+            logical_operator = new ViewGetLogicalOperator(table, fields, true);
+        }else {
+            logical_operator = new TableGetLogicalOperator(table, fields, true /*readonly*/);
+        }
+         
+        unique_ptr<LogicalOperator> table_get_oper(logical_operator);
         if (table_oper == nullptr) {
             table_oper = std::move(table_get_oper);
         } else {

@@ -69,6 +69,9 @@ public:
 
   static RC create(Db *db, const CreateTableSqlNode &create_table, Stmt *&stmt);
 
+public:
+  bool create_view_ = false;
+
 private:
   std::string table_name_;
   std::vector<AttrInfoSqlNode> attr_infos_;

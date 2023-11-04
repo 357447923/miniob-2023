@@ -245,6 +245,11 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
       }
     }
   }
+  if (create_table_stmt->create_view_) {
+    rc = db->create_view(create_table_stmt->table_name().c_str(), infos.size(), infos.data(), 
+        create_table_stmt->select_stmt()->tables());
+    return rc;
+  }
 
   rc = db->create_table(create_table_stmt->table_name().c_str(), infos.size(), infos.data());
   if (rc != RC::SUCCESS) {

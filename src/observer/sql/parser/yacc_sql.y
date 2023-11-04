@@ -436,6 +436,14 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       delete $5;
       delete $6;
     }
+    | CREATE VIEW ID create_table_select {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+      create_table.create_view = true;
+      create_table.select_table.reset($4);
+    }
     ;
 
 create_table_select:

@@ -232,6 +232,7 @@ struct AttrInfoSqlNode
  */
 struct CreateTableSqlNode
 {
+  bool                         create_view = false;
   std::string                  relation_name;         ///< Relation name 表名
   std::vector<AttrInfoSqlNode> attr_infos;            ///< attributes 属性
   std::unique_ptr<SelectSqlNode> select_table;        ///< select语句，用于create-table-select
