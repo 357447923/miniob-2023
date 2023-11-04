@@ -242,6 +242,7 @@ RC CLogBuffer::del_log_record(int index) {
   }
   std::unique_ptr<CLogRecord> removedLogRecord = std::move(log_records_[index]);
   log_records_.erase(log_records_.begin() + index);
+  return RC::SUCCESS;
 }
 
 RC CLogBuffer::flush_buffer(CLogFile &log_file)
@@ -495,8 +496,8 @@ RC CLogManager::commit_trx(int32_t trx_id, int32_t commit_xid)
     LOG_WARN("failed to append trx commit log. trx id=%d, rc=%s", trx_id, strrc(rc));
     return rc;
   }
-
-  rc = sync(); // 事务提交时需要把当前事务关联的日志，都写入到磁盘中，这样做是保证不丢数据
+  // 为了update-mvcc实现方便,暂时把持久化去掉
+  // rc = sync(); // 事务提交时需要把当前事务关联的日志，都写入到磁盘中，这样做是保证不丢数据
   return rc;
 }
 

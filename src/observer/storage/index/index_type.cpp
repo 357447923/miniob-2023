@@ -1,5 +1,6 @@
 #include "storage/index/index_type.h"
 
+
 // 创建字符串到索引类型的映射
 
 std::unordered_map<std::string, IndexType> stringToIndexMap = {
@@ -15,7 +16,8 @@ std::unordered_map<IndexType, std::string> indexToStringMap = {
 extern std::unordered_map<std::string, IndexType> stringToIndexMap;
 
 IndexType stringToIndex(const std::string& str) {
-    auto it = stringToIndexMap.find(str);
+    std::string indexStr = toUpperCase(str);
+    auto it = stringToIndexMap.find(indexStr);
     if (it != stringToIndexMap.end()) {
         return it->second;
     } else {
@@ -33,4 +35,15 @@ std::string indexToString(IndexType index) {
         // 处理无效的枚举值
         return "UNKNOWN";
     }
+}
+
+std::string toUpperCase(const std::string& str) {
+    std::string result = str;
+    std::locale loc;
+    
+    for (char& c : result) {
+        c = std::toupper(c, loc);
+    }
+    
+    return result;
 }
