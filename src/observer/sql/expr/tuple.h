@@ -694,7 +694,10 @@ public:
    */
   virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const {
     Expression *expr = spec.expression();
-    assert(expr == nullptr || expr->type() != ExprType::FIELD);
+    if(expr->type() == ExprType::VALUE) {
+      return expr->try_get_value(cell);
+    }
+    assert(expr == nullptr || expr->type() == ExprType::FIELD);
     const TupleCellSpec *view_actual_spec = view_->name_link_to_spec_[spec.field_name()];
     return tuple_->find_cell(*view_actual_spec, cell);
   }
