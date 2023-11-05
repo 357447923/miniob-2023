@@ -256,7 +256,11 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
           tuple->cell_at(i, values[i]);
         }
         const_cast<AttrInfoSqlNode &>(infos[i]).type = values[i].attr_type();
-        const_cast<AttrInfoSqlNode &>(infos[i]).length = values[i].length();
+        if (values[i].attr_type() == CHARS) {
+          const_cast<AttrInfoSqlNode &>(infos[i]).length = 100;
+        }else {
+          const_cast<AttrInfoSqlNode &>(infos[i]).length = values[i].length();
+        }
       }
     }
   }
