@@ -22,6 +22,7 @@ See the Mulan PSL v2 for more details. */
 #include "common/rc.h"
 #include "common/types.h"
 #include "common/log/log.h"
+#include "sql/stmt/select_stmt.h"
 #include "storage/index/index_meta.h"
 #include "storage/field/field_meta.h"
 
@@ -148,6 +149,9 @@ public:
   const char *data() const { return this->data_; }
   int         len() const { return this->len_; }
   int         bitmap_len() const { return this->bitmap_len_; }
+  Table      *table(){ return this->table_; }
+
+  void set_table(const Table *table) { this->table_ = const_cast<Table *>(table); }
 
   void set_rid(const RID &rid) { this->rid_ = rid; }
   void set_rid(const PageNum page_num, const SlotNum slot_num)
@@ -176,6 +180,7 @@ private:
   int   len_   = 0;       /// 如果不是record自己来管理内存，这个字段可能是无效的
   int   bitmap_len_ = 0;  /// 数据中的位图长度
   bool  owner_ = false;   /// 表示当前是否由record来管理内存
+  Table *table_ = nullptr; // 当前record要存到哪张表中
 };
 
 typedef std::vector<Record *> CompoundRecord;

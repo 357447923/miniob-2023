@@ -146,6 +146,7 @@ RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSq
 
   std::unordered_map<const FieldMeta *, const Table *> &field_link_to_table_ = view->field_link_to_table_;
 
+  //这里的关系存不进去
   for (auto *table : select_stmt->tables()) {
     for (auto &field_meta : *table->table_meta().field_metas()) {
       field_link_to_table_[&field_meta] = table;

@@ -43,7 +43,11 @@ RC InsertPhysicalOperator::open(Trx *trx)
   // 插入所有的记录，success字段用来做错误回退
   int success;
   for (success = 0; success < count; ++success) {
-    rc = trx->insert_record(table_, records[success]);
+    Table *table = records[success].table();
+    if (table == nullptr) {
+      table = table_;
+    }
+    rc = trx->insert_record(table, records[success]);
     if (rc != RC::SUCCESS) {
       LOG_WARN("failed to insert record by transaction. rc=%s", strrc(rc));
       goto failed_to_insert;
