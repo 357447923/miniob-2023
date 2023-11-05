@@ -246,6 +246,10 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
     }
   }
   if (create_table_stmt->create_view_) {
+    while (project->next() == RC::SUCCESS)
+    {
+      continue;
+    }
     project->close();
     rc = db->create_view(create_table_stmt->table_name().c_str(), infos.size(), infos.data(), 
         create_table_stmt->select_stmt(), std::move(project));

@@ -35,6 +35,8 @@ public:
 private:
   RC filter(Tuple &tuple, bool &result);
 
+public:
+  int                                      get_record_count_ = 0;
 private:
   View *                                   view_ = nullptr;
   Trx *                                    trx_ = nullptr;

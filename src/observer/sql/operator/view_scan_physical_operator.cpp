@@ -5,12 +5,14 @@ std::string ViewScanPhysicalOperator::param() const { return view_->name(); }
 
 RC ViewScanPhysicalOperator::open(Trx *trx) {
   assert(view_->project_physical_oper_ != nullptr);
+  get_record_count_ = 0;
   return view_->project_physical_oper_->open(trx);
 }
 RC ViewScanPhysicalOperator::next() {
   RC rc = RC::SUCCESS;
   bool filter_result = false;
   while ((rc = view_->project_physical_oper_->next()) == RC::SUCCESS) {
+    get_record_count_++;
     filter(*current_tuple(), filter_result);
     if (filter_result) {
       break;
@@ -19,6 +21,7 @@ RC ViewScanPhysicalOperator::next() {
   return rc;
 }
 RC ViewScanPhysicalOperator::close() {
+  LOG_ERROR("view scan get record count: %d", get_record_count_);
   return view_->project_physical_oper_->close();
 }
 Tuple *ViewScanPhysicalOperator::current_tuple() {

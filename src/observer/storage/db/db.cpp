@@ -128,7 +128,7 @@ RC Db::drop_table(const char *table_name) {
 }
 
 RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, 
-    SelectStmt *select_stmt, std::unique_ptr<PhysicalOperator> physical_oper) {
+    SelectStmt *select_stmt, std::unique_ptr<PhysicalOperator> &&physical_oper) {
   RC rc = RC::SUCCESS;
   // check table_name
   if (opened_tables_.count(table_name) != 0) {

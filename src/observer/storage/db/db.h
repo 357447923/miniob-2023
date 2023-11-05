@@ -52,7 +52,7 @@ public:
   RC create_table(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes);
 
   RC create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, 
-      SelectStmt *select_stmt, std::unique_ptr<PhysicalOperator> physical_oper);
+      SelectStmt *select_stmt, std::unique_ptr<PhysicalOperator> &&physical_oper);
 
   RC drop_table(const char *table_name);
 

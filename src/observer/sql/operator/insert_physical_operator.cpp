@@ -27,6 +27,20 @@ RC InsertPhysicalOperator::open(Trx *trx)
 {
   vector<Record> records;
   int count = static_cast<int>(values_->size());
+  // if (table_->project_physical_oper_!=nullptr)
+  // {
+  //   const std::vector<FieldMeta> &field_metas = *table_->table_meta().field_metas();
+  //   std::unordered_map<const Table *, vector<vector<Value>>> values_map;
+  //   for(int i = 0; i < values_->size(); i++) {
+  //     for (int j = 0; j < (*values_)[0].size(); j++) {
+  //       const Table *insert_table = table_->field_link_to_table_[&field_metas[j]];
+  //       vector<vector<Value>> &one_table_insert = values_map[insert_table];
+  //       one_table_insert.push_back()
+  //     }
+  //   }
+    
+  // }
+  
 
   RC rc = RC::SUCCESS;
   // 初始化所有的记录
