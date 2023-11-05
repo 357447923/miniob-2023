@@ -94,20 +94,26 @@ RC UpdatePhysicalOperator::next()
           sub_query->open_sub_query();
           rc = expr->get_value(*tuple, value);
           if (rc != RC::SUCCESS) {
-            LOG_INFO("get value fail.%s\t %d", __FILE__, __LINE__);
-            sub_query->close_sub_query();
-            return RC::INTERNAL;
-          }
-          Value tmp;
-          rc = expr->get_value(*tuple, tmp);
-          if (rc != RC::RECORD_EOF) {
-            if (rc == RC::SUCCESS) {
-              LOG_INFO("update can not receive mutiple value");
-            } else {
-              LOG_INFO("execption happen. file: %s, line: %d", __FILE__, __LINE__);
+            if (rc == RC::RECORD_EOF) {
+              value.set_null();
+            }else {
+              LOG_INFO("get value fail.%s\t %d", __FILE__, __LINE__);
+              sub_query->close_sub_query();
+              return RC::INTERNAL;
             }
-            sub_query->close_sub_query();
-            return RC::INTERNAL;
+          }
+          if (rc != RC::RECORD_EOF) {
+            Value tmp;
+            rc = expr->get_value(*tuple, tmp);
+            if (rc != RC::RECORD_EOF) {
+              if (rc == RC::SUCCESS) {
+                LOG_INFO("update can not receive mutiple value");
+              } else {
+                LOG_INFO("execption happen. file: %s, line: %d", __FILE__, __LINE__);
+              }
+              sub_query->close_sub_query();
+              return RC::INTERNAL;
+            }
           }
           sub_query->close_sub_query();
           common::type_cast(value, field->type());
@@ -160,20 +166,26 @@ RC UpdatePhysicalOperator::next()
           sub_query->open_sub_query();
           rc = expr->get_value(*tuple, value);
           if (rc != RC::SUCCESS) {
-            LOG_INFO("get value fail.%s\t %d", __FILE__, __LINE__);
-            sub_query->close_sub_query();
-            return RC::INTERNAL;
-          }
-          Value tmp;
-          rc = expr->get_value(*tuple, tmp);
-          if (rc != RC::RECORD_EOF) {
-            if (rc == RC::SUCCESS) {
-              LOG_INFO("update can not receive mutiple value");
-            } else {
-              LOG_INFO("execption happen. file: %s, line: %d", __FILE__, __LINE__);
+            if (rc == RC::RECORD_EOF) {
+              value.set_null();
+            }else {
+              LOG_INFO("get value fail.%s\t %d", __FILE__, __LINE__);
+              sub_query->close_sub_query();
+              return RC::INTERNAL;
             }
-            sub_query->close_sub_query();
-            return RC::INTERNAL;
+          }
+          if (rc != RC::RECORD_EOF) {
+            Value tmp;
+            rc = expr->get_value(*tuple, tmp);
+            if (rc != RC::RECORD_EOF) {
+              if (rc == RC::SUCCESS) {
+                LOG_INFO("update can not receive mutiple value");
+              } else {
+                LOG_INFO("execption happen. file: %s, line: %d", __FILE__, __LINE__);
+              }
+              sub_query->close_sub_query();
+              return RC::INTERNAL;
+            }
           }
           sub_query->close_sub_query();
           common::type_cast(value, field->type());
