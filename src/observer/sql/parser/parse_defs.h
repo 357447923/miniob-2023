@@ -220,9 +220,9 @@ struct UpdateSqlNode
 struct AttrInfoSqlNode
 {
   AttrType    type;       ///< Type of attribute
-  bool        not_null; ///< 是否非空，默认为可空   
+  bool        not_null = false; ///< 是否非空，默认为非空   
   std::string name;       ///< Attribute name
-  size_t      length;     ///< Length of attribute
+  size_t      length = 0;     ///< Length of attribute
 };
 
 /**

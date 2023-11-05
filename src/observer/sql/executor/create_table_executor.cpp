@@ -235,13 +235,28 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
       create_table_stmt->add_attr_info(info);
     }
   }else {
-    for (int i = 0; i < schema.cell_num(); ++i) {
-      RC rc = tuple->cell_at(i, values[i]);
-      if (rc != RC::SUCCESS) {
-        assert(false);
+    if (!create_table_stmt->create_view_) {
+      for (int i = 0; i < schema.cell_num(); ++i) {
+        RC rc = tuple->cell_at(i, values[i]);
+        if (rc != RC::SUCCESS) {
+          return RC::INTERNAL;
+        }
+        if (infos[i].type != values[i].attr_type()) {
+          return RC::INTERNAL;
+        }
       }
-      if (infos[i].type != values[i].attr_type()) {
-        return RC::INTERNAL;
+    }else {
+      for (int i = 0; i < schema.cell_num(); ++i) {
+        RC rc = tuple->cell_at(i, values[i]);
+        if (rc != RC::SUCCESS) {
+          return RC::INTERNAL;
+        }
+        while (values[i].attr_type() == NULLS) {
+          const_cast<AttrInfoSqlNode &>(infos[i]).not_null = false;
+          tuple->cell_at(i, values[i]);
+        }
+        const_cast<AttrInfoSqlNode &>(infos[i]).type = values[i].attr_type();
+        const_cast<AttrInfoSqlNode &>(infos[i]).length = values[i].length();
       }
     }
   }

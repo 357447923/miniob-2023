@@ -167,6 +167,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
   std::vector<RelAttrSqlNode> *     func_attr_list;
   RelationAndConditionTempList*     relationAndConditionTempList;
   std::vector<std::string> *        index_attr_list;
+  std::vector<std::string> *        id_list;
   SelectSqlNode *                   select_sql_node;
   char *                            string;
   int                               number;
@@ -207,7 +208,7 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <set_clause>          set_clause
 %type <set_clause_list>     set_clause_list
 %type <sub_select>          sub_query
-
+%type <id_list>             id_list
 
 %type <rel_attr_list>       attr_list
 %type <expression>          expression
@@ -445,7 +446,44 @@ create_table_stmt:    /*create table 语句的语法解析树*/
       create_table.create_view = true;
       create_table.select_table.reset($4);
     }
+    | CREATE VIEW ID LBRACE ID id_list RBRACE create_table_select {
+      $$ = new ParsedSqlNode(SCF_CREATE_TABLE);
+      CreateTableSqlNode &create_table = $$->create_table;
+      create_table.relation_name = $3;
+      free($3);
+      create_table.select_table.reset($8);
+      create_table.create_view = true;
+      if ($6 != nullptr) {
+        $6->push_back($5);
+        free($5);
+        std::reverse($6->begin(), $6->end());
+        for (std::string &str : *$6) {
+          AttrInfoSqlNode attr_info;
+          attr_info.name = str;
+          create_table.attr_infos.emplace_back(attr_info);
+        }
+      }else {
+        AttrInfoSqlNode attr_info;
+        attr_info.name = $5;
+        create_table.attr_infos.emplace_back(attr_info);
+      }
+      delete $6;
+    }
     ;
+id_list:
+  {
+    $$ = nullptr;
+  }
+  | COMMA ID id_list {
+    if ($3 != nullptr) {
+      $$ = $3;
+    }else {
+      $$ = new std::vector<std::string>;
+    }
+    $$->push_back($2);
+    free($2);
+  }
+
 
 create_table_select:
   select_stmt
