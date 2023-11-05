@@ -537,7 +537,7 @@ attr_def:
       $$->type = (AttrType)$2;
       $$->name = $1;
       $$->length = $4;
-      $$->not_null = true;
+      $$->not_null = false;
       free($1);
     }
     | ID type
@@ -550,12 +550,12 @@ attr_def:
       } else{
         $$->length = 4;
       }
-      $$->not_null = true;
+      $$->not_null = false;
       free($1);
     }
     | attr_def NOT null {
       $$ = $1;
-      $$->not_null = true;
+      $$->not_null = false;
     }
     | attr_def null {
       $$ = $1;
