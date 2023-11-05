@@ -11,7 +11,7 @@ RC ViewScanPhysicalOperator::next() {
   RC rc = RC::SUCCESS;
   bool filter_result = false;
   while ((rc = view_->project_physical_oper_->next()) == RC::SUCCESS) {
-    filter(*view_->project_physical_oper_->current_tuple(), filter_result);
+    filter(*current_tuple(), filter_result);
     if (filter_result) {
       break;
     }

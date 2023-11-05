@@ -145,13 +145,34 @@ RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSq
   }
 
   std::unordered_map<const FieldMeta *, const Table *> &field_link_to_table_ = view->field_link_to_table_;
-
-  //这里的关系存不进去
-  for (auto *table : select_stmt->tables()) {
-    for (auto &field_meta : *table->table_meta().field_metas()) {
-      field_link_to_table_[&field_meta] = table;
+  const std::vector<Expression *> &query_exprs = select_stmt->query_expressions();
+  bool with_table_name = !select_stmt->tables().empty();
+  auto get_meta_name = [with_table_name](Expression *expr, const char **name_ptr, const Table **table) {
+    switch (expr->type()) {
+      case ExprType::FIELD: {
+        if (*name_ptr == nullptr) {
+          *name_ptr = static_cast<FieldExpr *>(expr)->field_name();
+        }
+        *table = static_cast<FieldExpr *>(expr)->field().table();
+      } break;
     }
+  };
+
+  for (Expression *expr : query_exprs) {
+    const char *name = expr->alias();
+    const Table *table = nullptr;
+    get_meta_name(expr, &name, &table);
+
+    if (name != nullptr) {
+      const FieldMeta *field_meta = table_meta.field(name);
+      if (field_meta == nullptr) {
+        continue;
+      }
+      field_link_to_table_[field_meta] = table;
+    }
+      
   }
+
   view->project_physical_oper_ = physical_oper.get();
   physical_oper.release();
   const std::vector<TupleCellSpec *> &speces = ((ProjectPhysicalOperator *)view->project_physical_oper_)->speces();

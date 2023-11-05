@@ -139,6 +139,7 @@ public:
   virtual RC get_record(std::vector<Record *> &records) const {
     return RC::INTERNAL;
   }
+  
 };
 
 /**
@@ -668,6 +669,9 @@ public:
   void set_tuple(Tuple *tuple) {
     tuple_ = tuple;
   }
+  const Table *view() const {
+    return view_;
+  }
    /**
    * @brief 获取元组中的Cell的个数
    * @details 个数应该与tuple_schema一致
@@ -700,6 +704,10 @@ public:
     assert(expr == nullptr || expr->type() == ExprType::FIELD);
     const TupleCellSpec *view_actual_spec = view_->name_link_to_spec_[spec.field_name()];
     return tuple_->find_cell(*view_actual_spec, cell);
+  }
+
+  virtual RC get_record(std::vector<Record *> &records) const override {
+    return tuple_->get_record(records);
   }
 
 private:
