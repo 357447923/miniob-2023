@@ -664,7 +664,7 @@ RC AggrFuncExpr::get_value(const Tuple &tuple, Value &value) const {
   }else if (value_ != nullptr) {
     if (tuple.cell_num() > 0) {
       TupleCellSpec tmp_spec(type_, value_);
-      return tuple.find_cell(tmp_spec, value);;
+      return tuple.find_cell(tmp_spec, value);
     }
   }
   return RC::UNIMPLENMENT;
