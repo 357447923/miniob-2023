@@ -24,6 +24,8 @@ See the Mulan PSL v2 for more details. */
 
 class Table;
 class CLogManager;
+class SelectStmt;
+class PhysicalOperator;
 
 typedef Table View;
 
@@ -49,7 +51,8 @@ public:
 
   RC create_table(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes);
 
-  RC create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, std::vector<Table *> tables);
+  RC create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, 
+      SelectStmt *select_stmt, std::unique_ptr<PhysicalOperator> physical_oper);
 
   RC drop_table(const char *table_name);
 
@@ -77,4 +80,5 @@ private:
 
   /// 给每个table都分配一个ID，用来记录日志。这里假设所有的DDL都不会并发操作，所以相关的数据都不上锁
   int32_t next_table_id_ = 0;
+  int32_t next_view_id_ = -1;
 };

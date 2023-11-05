@@ -13,6 +13,9 @@ RC CreateTableSelectPhysicalOperator::next() {
 }
 
 RC CreateTableSelectPhysicalOperator::close() {
+  if (!children_[0]) {
+    return RC::SUCCESS;
+  }
   return children_[0]->close();
 }
 

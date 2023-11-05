@@ -16,10 +16,10 @@ See the Mulan PSL v2 for more details. */
 
 #include <vector>
 #include <memory>
+#include <unordered_map>
 
 #include "common/rc.h"
 #include "sql/stmt/stmt.h"
-#include "storage/field/field.h"
 
 class FieldMeta;
 class FilterStmt;
@@ -76,6 +76,8 @@ public:
   OrderByStmt *orderby_for_groupby() const {
     return orderby_for_groupby_;
   }
+
+  void move_to(SelectStmt &select_stmt);
 
 private:
   std::vector<Expression *> query_expressions_;

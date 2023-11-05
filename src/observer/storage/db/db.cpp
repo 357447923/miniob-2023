@@ -26,6 +26,9 @@ See the Mulan PSL v2 for more details. */
 #include "storage/common/meta_util.h"
 #include "storage/trx/trx.h"
 #include "storage/clog/clog.h"
+#include "sql/expr/expression.h"
+#include "sql/stmt/select_stmt.h"
+#include "sql/operator/project_physical_operator.h"
 
 Db::~Db()
 {
@@ -124,25 +127,47 @@ RC Db::drop_table(const char *table_name) {
   return rc;
 }
 
-RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, std::vector<Table *> tables) {
+RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSqlNode *attributes, 
+    SelectStmt *select_stmt, std::unique_ptr<PhysicalOperator> physical_oper) {
   RC rc = RC::SUCCESS;
   // check table_name
   if (opened_tables_.count(table_name) != 0) {
     LOG_WARN("%s has been opened before.", table_name);
     return RC::SCHEMA_TABLE_EXIST;
   }
-  Table *table = new Table();
-  table->is_view_ = true;
-  TableMeta &table_meta = const_cast<TableMeta &>(table->table_meta());
-  rc = table_meta.init(-255, table_name, attribute_count, attributes);
+  View *view = new View();
+  TableMeta &table_meta = const_cast<TableMeta &>(view->table_meta());
+  rc = table_meta.init(next_view_id_--, table_name, attribute_count, attributes);
   if (rc != RC::SUCCESS) {
     LOG_ERROR("Failed to create view %s.", table_name);
-    delete table;
+    delete view;
     return rc;
   }
 
-  opened_tables_[table_name] = table;
-  table->view_attach_tables_[table] = tables;
+  std::unordered_map<const FieldMeta *, const Table *> &field_link_to_table_ = view->field_link_to_table_;
+
+  for (auto *table : select_stmt->tables()) {
+    for (auto &field_meta : *table->table_meta().field_metas()) {
+      field_link_to_table_[&field_meta] = table;
+    }
+  }
+  view->project_physical_oper_ = physical_oper.get();
+  physical_oper.release();
+  const std::vector<TupleCellSpec *> &speces = ((ProjectPhysicalOperator *)view->project_physical_oper_)->speces();
+  for (int i = 0; i < attribute_count; ++i) {
+    view->name_link_to_spec_[attributes[i].name] = speces[i];
+  }
+  select_stmt->move_to(view->select_stmt_);
+#if 0
+  std::vector<Expression *> exprs;
+  exprs.swap(const_cast<std::vector<Expression *> &>(select_stmt->query_expressions()));
+  auto &name_link_to_expr = view->name_link_to_expr_;
+  for (int i = 0; i < attribute_count; i++) {
+    name_link_to_expr[attributes[i].name] = exprs[i];
+  }
+#endif  
+  opened_tables_[table_name] = view;
+
   LOG_INFO("Create view success. view name=%s", table_name);
   return RC::SUCCESS;
 }

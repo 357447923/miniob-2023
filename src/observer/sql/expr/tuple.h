@@ -660,3 +660,46 @@ private:
   std::vector<AggrFuncExpr *> aggr_func_exprs_;
   Tuple *tuple_ = nullptr;
 };
+
+class ViewTuple : public Tuple {
+public:
+  ViewTuple(Table *view) : view_(view) {}
+
+  void set_tuple(Tuple *tuple) {
+    tuple_ = tuple;
+  }
+   /**
+   * @brief 获取元组中的Cell的个数
+   * @details 个数应该与tuple_schema一致
+   */
+  virtual int cell_num() const {
+    return tuple_->cell_num();
+  }
+
+  /**
+   * @brief 获取指定位置的Cell
+   * 
+   * @param index 位置
+   * @param[out] cell  返回的Cell
+   */
+  virtual RC cell_at(int index, Value &cell) const {
+    return tuple_->cell_at(index, cell);
+  }
+
+  /**
+   * @brief 根据cell的描述，获取cell的值
+   * 
+   * @param spec cell的描述
+   * @param[out] cell 返回的cell
+   */
+  virtual RC find_cell(const TupleCellSpec &spec, Value &cell) const {
+    Expression *expr = spec.expression();
+    assert(expr == nullptr || expr->type() != ExprType::FIELD);
+    const TupleCellSpec *view_actual_spec = view_->name_link_to_spec_[spec.field_name()];
+    return tuple_->find_cell(*view_actual_spec, cell);
+  }
+
+private:
+  Table *view_ = nullptr;
+  Tuple *tuple_ = nullptr;    // 正常来说这个应该是ProjectTuple
+};

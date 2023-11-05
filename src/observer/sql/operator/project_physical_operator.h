@@ -32,6 +32,10 @@ public:
   
   void add_projection(const Field *field);
 
+  const std::vector<TupleCellSpec *> &speces() {
+    return tuple_.speces();
+  }
+
   PhysicalOperatorType type() const override
   {
     return PhysicalOperatorType::PROJECT;

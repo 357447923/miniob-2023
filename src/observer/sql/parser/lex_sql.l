@@ -90,6 +90,8 @@ TABLE                                   RETURN_TOKEN(TABLE);
 VIEW                                    RETURN_TOKEN(VIEW);
 TABLES                                  RETURN_TOKEN(TABLES);
 INDEX                                   RETURN_TOKEN(INDEX);
+UNIQUE                                  RETURN_TOKEN(UNIQUE);
+VIEW                                    RETURN_TOKEN(VIEW);
 INNER                                   RETURN_TOKEN(INNER);
 JOIN                                    RETURN_TOKEN(JOIN);
 ON                                      RETURN_TOKEN(ON);

@@ -43,6 +43,7 @@ See the Mulan PSL v2 for more details. */
 #include "sql/operator/update_physical_operator.h"
 #include "sql/operator/create_table_select_logical_operator.h"
 #include "sql/operator/create_table_select_physical_operator.h"
+#include "sql/operator/view_scan_physical_operator.h"
 #include "sql/optimizer/physical_plan_generator.h"
 
 using namespace std;
@@ -216,7 +217,13 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
     oper = unique_ptr<PhysicalOperator>(index_scan_oper);
     LOG_TRACE("use index scan");
   } else {
-    auto table_scan_oper = new TableScanPhysicalOperator(table, table_get_oper.readonly());
+    PhysicalOperator *table_scan_oper;
+    if (table->project_physical_oper_ != nullptr) {
+      table_scan_oper = new ViewScanPhysicalOperator(table, table_get_oper.readonly());
+    }else {
+      table_scan_oper = new TableScanPhysicalOperator(table, table_get_oper.readonly());
+    }
+
     for (auto &predicate : predicates) {
       RC rc;
       switch (predicate->type()) {
@@ -247,7 +254,12 @@ RC PhysicalPlanGenerator::create_plan(TableGetLogicalOperator &table_get_oper, u
         return rc;
       }
     }
-    table_scan_oper->set_predicates(std::move(predicates));
+    if (table_scan_oper->type() == PhysicalOperatorType::TABLE_SCAN) {
+      ((TableScanPhysicalOperator *)table_scan_oper)->set_predicates(std::move(predicates));
+    }else {
+      ((ViewScanPhysicalOperator *)table_scan_oper)->set_predicates(std::move(predicates));
+    }
+    
     oper = unique_ptr<PhysicalOperator>(table_scan_oper);
     LOG_TRACE("use table scan");
   }

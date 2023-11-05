@@ -143,7 +143,7 @@ static RC handle_normal_field(const TupleCellSpec &spec, CreateTableInfo &info,
   return RC::SUCCESS;
 }
 /**
- * @details 本方法bug多到难以想象
+ * 本方法bug多到难以想象
  */
 RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   CreateTableStmt *create_table_stmt = oper->create_table_stmt();
@@ -158,7 +158,7 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
     return rc;
   }
   const std::vector<CreateTableInfo> &infos = create_table_stmt->attr_infos();
-  bool need_to_add = infos.empty();
+  bool need_to_fetch_table_attrs = infos.empty();
 
   const std::vector<Table *> &tables = select_stmt->tables();
   // 处理没有from语句的情况，比如select FUNC('1111');
@@ -173,7 +173,7 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
   values.resize(schema.cell_num());
 
   Table *table = nullptr;
-  if (need_to_add) {
+  if (need_to_fetch_table_attrs) {
     for (int i = 0; i < schema.cell_num(); ++i) {
       const TupleCellSpec &spec = schema.cell_at(i);
       CreateTableInfo info;
@@ -246,9 +246,10 @@ RC CreateTableExecutor::execute(CreateTableSelectPhysicalOperator *oper) {
     }
   }
   if (create_table_stmt->create_view_) {
+    project->close();
     rc = db->create_view(create_table_stmt->table_name().c_str(), infos.size(), infos.data(), 
-        create_table_stmt->select_stmt()->tables());
-    return rc;
+        create_table_stmt->select_stmt(), std::move(project));
+    return RC::RECORD_EOF;
   }
 
   rc = db->create_table(create_table_stmt->table_name().c_str(), infos.size(), infos.data());

@@ -76,6 +76,8 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         TABLE
         TABLES
         INDEX
+        UNIQUE
+        VIEW
         CALC
         SELECT
         SHOW
@@ -348,7 +350,7 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       free($5);
       free($7);
     }
-    | CREATE ID INDEX ID ON ID LBRACE ID idx_attr_list RBRACE
+    | CREATE UNIQUE INDEX ID ON ID LBRACE ID idx_attr_list RBRACE
     {
       $$ = new ParsedSqlNode(SCF_CREATE_INDEX);
       CreateIndexSqlNode &create_index = $$->create_index;
@@ -360,8 +362,7 @@ create_index_stmt:    /*create index 语句的语法解析树*/
       }
       create_index.attribute_names.push_back($8);
       std::reverse(create_index.attribute_names.begin(), create_index.attribute_names.end());
-      create_index.index_type = $2;
-      free($2);
+      create_index.index_type = "UNIQUE";
       free($4);
       free($6);
       free($8);

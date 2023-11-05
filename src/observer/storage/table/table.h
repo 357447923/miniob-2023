@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details. */
 
 #include <functional>
 #include "storage/table/table_meta.h"
+#include "sql/stmt/select_stmt.h"
 
 struct RID;
 class Record;
@@ -28,6 +29,8 @@ class Index;
 class IndexScanner;
 class RecordDeleter;
 class Trx;
+class PhysicalOperator;
+class TupleCellSpec;
 
 /**
  * @brief 表
@@ -111,16 +114,19 @@ private:
 
 private:
   RC init_record_handler(const char *base_dir);
-
+// select a from v1 new FieldExpr
+// create view v1 as select id as a from t1;
 public:
   Index *find_index(const char *index_name) const;
   Index *find_index_by_field(const char *field_name) const;
   std::vector<Index *> indexs() const;
-
+  
 public:
-  // 第二个只有在is_view_为true时才能有值
-  bool is_view_ = false;
-  std::unordered_map<Table *, std::vector<Table *>> view_attach_tables_;      // 视图存在opened_tables_中，然后视图与什么表联系存在这个容器中
+  // 如果是视图的话，这个执行算子才不为null
+  PhysicalOperator *project_physical_oper_; // 视图对应的select语句执行算子
+  std::unordered_map<const FieldMeta *, const Table *> field_link_to_table_;  // 视图存在opened_tables_中，然后select表达式与什么表联系存在这个容器中
+  std::unordered_map<std::string, const TupleCellSpec *> name_link_to_spec_;
+  SelectStmt select_stmt_;
 
 private:
   std::string base_dir_;
