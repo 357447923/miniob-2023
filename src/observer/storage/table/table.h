@@ -126,6 +126,7 @@ public:
   PhysicalOperator *project_physical_oper_; // 视图对应的select语句执行算子
   std::unordered_map<const FieldMeta *, const Table *> field_link_to_table_;  // 视图存在opened_tables_中，然后select表达式与什么表联系存在这个容器中
   std::unordered_map<std::string, const TupleCellSpec *> name_link_to_spec_;
+  std::unordered_map<const FieldMeta *, const FieldMeta *> view_field_link_to_origin_field_;
   SelectStmt select_stmt_;
 
 private:

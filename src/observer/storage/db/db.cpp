@@ -144,16 +144,19 @@ RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSq
     return rc;
   }
 
-  std::unordered_map<const FieldMeta *, const Table *> &field_link_to_table_ = view->field_link_to_table_;
+  std::unordered_map<const FieldMeta *, const Table *> &field_link_to_table = view->field_link_to_table_;
+  std::unordered_map<const FieldMeta *, const FieldMeta *> &view_field_link_to_origin_field = view->view_field_link_to_origin_field_;
   const std::vector<Expression *> &query_exprs = select_stmt->query_expressions();
   bool with_table_name = !select_stmt->tables().empty();
-  auto get_meta_name = [with_table_name](Expression *expr, const char **name_ptr, const Table **table) {
+  auto get_meta_name = [with_table_name](Expression *expr, const char **name_ptr, const Table **table, const FieldMeta **physical_field) {
     switch (expr->type()) {
       case ExprType::FIELD: {
+        FieldExpr *field_expr = static_cast<FieldExpr *>(expr);
         if (*name_ptr == nullptr) {
-          *name_ptr = static_cast<FieldExpr *>(expr)->field_name();
+          *name_ptr = field_expr->field_name();
         }
-        *table = static_cast<FieldExpr *>(expr)->field().table();
+        *table = field_expr->field().table();
+        *physical_field = field_expr->field().meta();
       } break;
     }
   };
@@ -161,16 +164,17 @@ RC Db::create_view(const char *table_name, int attribute_count, const AttrInfoSq
   for (Expression *expr : query_exprs) {
     const char *name = expr->alias();
     const Table *table = nullptr;
-    get_meta_name(expr, &name, &table);
+    const FieldMeta *physical_field = nullptr;
+    get_meta_name(expr, &name, &table, &physical_field);
 
     if (name != nullptr) {
       const FieldMeta *field_meta = table_meta.field(name);
       if (field_meta == nullptr) {
         continue;
       }
-      field_link_to_table_[field_meta] = table;
+      field_link_to_table[field_meta] = table;
+      view_field_link_to_origin_field[field_meta] = physical_field;
     }
-      
   }
 
   view->project_physical_oper_ = physical_oper.get();
