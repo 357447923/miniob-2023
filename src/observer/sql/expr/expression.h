@@ -501,6 +501,37 @@ public:
     return AttrType::UNDEFINED;
   };
 
+
+  static bool is_correlated(const SubQueryExpr *expr) {
+    const std::vector<Expression *> &exprs = expr->select_stmt_->query_expressions();
+    const std::vector<Table *> &tables = expr->select_stmt_->tables();
+    if (exprs.empty()) {
+      return false;
+    }
+    for (Expression *expr : exprs) {
+      if (expr->type() == ExprType::FIELD) {
+        FieldExpr *field_expr = (FieldExpr *)expr;
+        const Table *query_table = field_expr->field().table();
+        bool contains_table = false;
+        for (auto *table : tables) {
+          if (query_table == table) {
+            contains_table = true;
+            break;
+          }
+        }
+        if (!contains_table) {
+          return false;
+        }
+      }else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+public:
+  bool has_judge_ = false;   // 是否判断过是相关子查询
+
 private:
   Trx *trx_ = nullptr;
   SelectStmt *select_stmt_ = nullptr;       // 子查询的select语句, 不属于表达式管理
