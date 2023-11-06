@@ -119,7 +119,6 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
         ASC
         DESC
         LOAD
-        DATA
         INFILE
         EXPLAIN
         MAX
@@ -233,7 +232,6 @@ void init_relation_sql_node(char *table_name, char *alias, RelationSqlNode &node
 %type <sql_node>            begin_stmt
 %type <sql_node>            commit_stmt
 %type <sql_node>            rollback_stmt
-%type <sql_node>            load_data_stmt
 %type <sql_node>            explain_stmt
 %type <sql_node>            set_variable_stmt
 %type <sql_node>            help_stmt
@@ -270,7 +268,7 @@ command_wrapper:
   | begin_stmt
   | commit_stmt
   | rollback_stmt
-  | load_data_stmt
+  // | load_data_stmt
   | explain_stmt
   | set_variable_stmt
   | help_stmt
@@ -555,7 +553,8 @@ attr_def:
     }
     | attr_def NOT null {
       $$ = $1;
-      $$->not_null = false;
+      // TODO 不知道是改哪个
+      $$->not_null = true;
     }
     | attr_def null {
       $$ = $1;
@@ -1481,18 +1480,18 @@ comp_op:
     | NOT LIKE { $$ = NOT_LIKE_OP; }
     ;
 
-load_data_stmt:
-    LOAD DATA INFILE SSS INTO TABLE ID 
-    {
-      char *tmp_file_name = common::substr($4, 1, strlen($4) - 2);
+// load_data_stmt:
+//     LOAD DATA INFILE SSS INTO TABLE ID 
+//     {
+//       char *tmp_file_name = common::substr($4, 1, strlen($4) - 2);
       
-      $$ = new ParsedSqlNode(SCF_LOAD_DATA);
-      $$->load_data.relation_name = $7;
-      $$->load_data.file_name = tmp_file_name;
-      free($7);
-      free(tmp_file_name);
-    }
-    ;
+//       $$ = new ParsedSqlNode(SCF_LOAD_DATA);
+//       $$->load_data.relation_name = $7;
+//       $$->load_data.file_name = tmp_file_name;
+//       free($7);
+//       free(tmp_file_name);
+//     }
+//     ;
 
 explain_stmt:
     EXPLAIN command_wrapper

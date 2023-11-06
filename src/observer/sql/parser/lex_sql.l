@@ -124,7 +124,7 @@ NOT                                     RETURN_TOKEN(NOT);
 EXISTS                                  RETURN_TOKEN(EXISTS);
 IN                                      RETURN_TOKEN(IN);
 LOAD                                    RETURN_TOKEN(LOAD);
-DATA                                    RETURN_TOKEN(DATA);
+
 INFILE                                  RETURN_TOKEN(INFILE);
 EXPLAIN                                 RETURN_TOKEN(EXPLAIN);
 "MAX("                                  RETURN_TOKEN(MAX);

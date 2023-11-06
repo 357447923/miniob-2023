@@ -103,32 +103,31 @@ extern int yydebug;
     ASC = 304,                     /* ASC  */
     DESC = 305,                    /* DESC  */
     LOAD = 306,                    /* LOAD  */
-    DATA = 307,                    /* DATA  */
-    INFILE = 308,                  /* INFILE  */
-    EXPLAIN = 309,                 /* EXPLAIN  */
-    MAX = 310,                     /* MAX  */
-    MIN = 311,                     /* MIN  */
-    AVG = 312,                     /* AVG  */
-    COUNT = 313,                   /* COUNT  */
-    SUM = 314,                     /* SUM  */
-    LENGTH = 315,                  /* LENGTH  */
-    ROUND = 316,                   /* ROUND  */
-    DATE_FORMAT = 317,             /* DATE_FORMAT  */
-    EXISTS = 318,                  /* EXISTS  */
-    IN = 319,                      /* IN  */
-    EQ = 320,                      /* EQ  */
-    LT = 321,                      /* LT  */
-    GT = 322,                      /* GT  */
-    LE = 323,                      /* LE  */
-    GE = 324,                      /* GE  */
-    NE = 325,                      /* NE  */
-    LIKE = 326,                    /* LIKE  */
-    AS = 327,                      /* AS  */
-    NUMBER = 328,                  /* NUMBER  */
-    FLOAT = 329,                   /* FLOAT  */
-    ID = 330,                      /* ID  */
-    SSS = 331,                     /* SSS  */
-    UMINUS = 332                   /* UMINUS  */
+    INFILE = 307,                  /* INFILE  */
+    EXPLAIN = 308,                 /* EXPLAIN  */
+    MAX = 309,                     /* MAX  */
+    MIN = 310,                     /* MIN  */
+    AVG = 311,                     /* AVG  */
+    COUNT = 312,                   /* COUNT  */
+    SUM = 313,                     /* SUM  */
+    LENGTH = 314,                  /* LENGTH  */
+    ROUND = 315,                   /* ROUND  */
+    DATE_FORMAT = 316,             /* DATE_FORMAT  */
+    EXISTS = 317,                  /* EXISTS  */
+    IN = 318,                      /* IN  */
+    EQ = 319,                      /* EQ  */
+    LT = 320,                      /* LT  */
+    GT = 321,                      /* GT  */
+    LE = 322,                      /* LE  */
+    GE = 323,                      /* GE  */
+    NE = 324,                      /* NE  */
+    LIKE = 325,                    /* LIKE  */
+    AS = 326,                      /* AS  */
+    NUMBER = 327,                  /* NUMBER  */
+    FLOAT = 328,                   /* FLOAT  */
+    ID = 329,                      /* ID  */
+    SSS = 330,                     /* SSS  */
+    UMINUS = 331                   /* UMINUS  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -137,7 +136,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 145 "yacc_sql.y"
+#line 144 "yacc_sql.y"
 
   ParsedSqlNode *                   sql_node;
   ConditionSqlNode *                condition;
@@ -169,7 +168,7 @@ union YYSTYPE
   int                               number;
   float                             floats;
 
-#line 173 "yacc_sql.hpp"
+#line 172 "yacc_sql.hpp"
 
 };
 typedef union YYSTYPE YYSTYPE;

@@ -34,6 +34,10 @@ RC InsertPhysicalOperator::open(Trx *trx)
     for (int i = 0; i < (*values_)[0].size(); i++) {
       const FieldMeta &view_field_meta = field_metas[i];
       const Table     *origin_table    = table_->field_link_to_table_[&view_field_meta];
+      if (origin_table == nullptr)
+      {
+        return RC::INTERNAL;
+      }
       loc_map[origin_table].push_back(i);
     }
 

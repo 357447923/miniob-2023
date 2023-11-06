@@ -329,6 +329,13 @@ RC cell_at(int index, Value &cell) const override
 
 RC find_cell(const TupleCellSpec &spec, Value &cell) const override
 {
+  Expression *expr =  spec.expression();
+  if (expr != nullptr)
+  {
+    if (expr->type() == ExprType::ARITHMETIC || expr->type() == ExprType::FUNC) {
+      return expr->get_value(*tuple_, cell);
+    }  
+  }
   RC rc = tuple_->find_cell(spec, cell);
   return rc;
 }
