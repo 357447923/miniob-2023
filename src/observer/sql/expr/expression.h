@@ -520,13 +520,13 @@ public:
           }
         }
         if (!contains_table) {
-          return false;
+          return true;
         }
       }else {
-        return false;
+        return true;
       }
     }
-    return true;
+    return false;
   }
 
 public:
