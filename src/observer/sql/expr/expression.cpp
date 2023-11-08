@@ -243,10 +243,10 @@ RC ComparisonExpr::get_value(const Tuple &tuple, Value &value) const
         return rc;
       }
       right_cells.pop_back();
-      if (!sub_query_expr->has_judge_ && !SubQueryExpr::is_correlated(sub_query_expr)) {
-      const_cast<SubQueryExpr *>(sub_query_expr)->has_judge_ = true;
-      const_cast<std::unique_ptr<Expression> &>(right_).reset(new ListQueryExpr(right_cells));
-      }
+      // if (!sub_query_expr->has_judge_ && !SubQueryExpr::is_correlated(sub_query_expr)) {
+      // const_cast<SubQueryExpr *>(sub_query_expr)->has_judge_ = true;
+      // const_cast<std::unique_ptr<Expression> &>(right_).reset(new ListQueryExpr(right_cells));
+      // }
     }else {
       assert(ExprType::SUBLIST == right_->type());
       auto list_expr = (const ListQueryExpr *)right_.get();
